@@ -1,9 +1,8 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport sqrt, pow, fabs
-from AlgTool cimport presition
-import mpmath
+from .AlgTool cimport presition
 
-cdef double determinant(double* mat, unsigned int rows):
+cdef double determinant(double * mat, unsigned int rows):
     cdef double data, compose
     cdef unsigned int i,j,k, curind
     cdef double * subarray
@@ -34,15 +33,15 @@ cdef double determinant(double* mat, unsigned int rows):
 
 cdef tuple eig(double * _mat, unsigned int nsize, bint tosorted):
     cdef unsigned int i,j,k, iterCounter, index
-    cdef double* p
-    cdef double* a
-    cdef double* eigvalue
+    cdef double * p
+    cdef double * a
+    cdef double * eigvalue
     cdef double mu, val
     cdef Matrix matVect
     try:
-        p = <double*> PyMem_Malloc(nsize*nsize*sizeof(double)) # puntero a los autovectores
-        a = <double*> PyMem_Malloc(nsize*nsize*sizeof(double))  # puntero copia de la matriz inicial, para hacer los giros
-        eigvalue = <double*> PyMem_Malloc(nsize*sizeof(double)) # puntero a los elementos autovalores
+        p = <double *> PyMem_Malloc(nsize*nsize*sizeof(double)) # puntero a los autovectores
+        a = <double *> PyMem_Malloc(nsize*nsize*sizeof(double))  # puntero copia de la matriz inicial, para hacer los giros
+        eigvalue = <double *> PyMem_Malloc(nsize*sizeof(double)) # puntero a los elementos autovalores
         for i in range(nsize):
             for j in range(nsize):
                 if i == j:
@@ -90,17 +89,17 @@ cdef tuple eig(double * _mat, unsigned int nsize, bint tosorted):
         PyMem_Free(p)
         PyMem_Free(eigvalue)
 
-cdef void transpose(double* tomat, double* fmat, unsigned int rows, unsigned int cols):
+cdef void transpose(double * tomat, double * fmat, unsigned int rows, unsigned int cols):
     cdef unsigned int i,j
     for i in range(rows):
         for j in range(cols):
             tomat[i+rows*j] = fmat[j+cols*i]
 
-cdef void adjugate(double* tomat, double* fmat, unsigned int rows, unsigned int cols):
+cdef void adjugate(double * tomat, double * fmat, unsigned int rows, unsigned int cols):
     # los tamanos tienen que estar equilibrados
     cdef unsigned int i,j,k, curind
     cdef double composedDet
-    cdef double* subarray
+    cdef double * subarray
     if rows == 1:
         tomat[0] = fmat[0]
         return
@@ -118,12 +117,12 @@ cdef void adjugate(double* tomat, double* fmat, unsigned int rows, unsigned int 
     finally:
         PyMem_Free(subarray)
 
-cdef void inverse(double* tomat, double* fmat, unsigned int rows, unsigned int cols):
+cdef void inverse(double * tomat, double * fmat, unsigned int rows, unsigned int cols):
     cdef unsigned int i
     cdef double determinante
-    cdef double* tarray
+    cdef double * tarray
     try:
-        tarray = <double*> PyMem_Malloc(rows*cols*sizeof(double))
+        tarray = <double *> PyMem_Malloc(rows*cols*sizeof(double))
         if cols != rows:
             raise ArithmeticError("Is not possible to inverse not square matrix")
         determinante = determinant(fmat, rows)
@@ -137,7 +136,7 @@ cdef void inverse(double* tomat, double* fmat, unsigned int rows, unsigned int c
         PyMem_Free(tarray)
 
 
-cdef double threshold(unsigned int n,double* a):
+cdef double threshold(unsigned int n,double * a):
     cdef double vsum
     cdef unsigned int i,j
     vsum = 0
@@ -146,7 +145,7 @@ cdef double threshold(unsigned int n,double* a):
             vsum += fabs(a[j+i*n])
     return 0.5*vsum/n/(n-1)
 
-cdef void protate(double* a,unsigned int nsize, double* p,unsigned int k,unsigned int l):
+cdef void protate(double * a,unsigned int nsize, double * p,unsigned int k,unsigned int l):
     cdef double aDiff, t, phi, c, s, tau, temp
     cdef unsigned int i
 
@@ -182,7 +181,7 @@ cdef void protate(double* a,unsigned int nsize, double* p,unsigned int k,unsigne
         p[k+nsize*i] = temp - s*(p[l+nsize*i]+ tau*p[k+nsize*i])
         p[l+nsize*i] = p[l+nsize*i] + s*(temp-tau*p[l+nsize*i])
 
-cdef void matAdj(double* toMat, double* fromMat, unsigned int rows, unsigned int cols, unsigned int prow, unsigned int pcol):
+cdef void matAdj(double * toMat, double * fromMat, unsigned int rows, unsigned int cols, unsigned int prow, unsigned int pcol):
     # newmat should be dimensioned acordly. It dont will make the verifiacation
     cdef unsigned int i,j, ipos
     ipos = 0
@@ -195,7 +194,7 @@ cdef void matAdj(double* toMat, double* fromMat, unsigned int rows, unsigned int
             toMat[ipos] = fromMat[j+i*cols]
             ipos += 1
 
-cdef void mult(double* tomat, double* mat1, unsigned int rows1, unsigned int cols1, double* mat2, unsigned int rows2, unsigned int cols2):
+cdef void mult(double * tomat, double * mat1, unsigned int rows1, unsigned int cols1, double * mat2, unsigned int rows2, unsigned int cols2):
     # no hace la verificacion de tamanos !!!!!!!
     cdef unsigned int row, col, j
     cdef double value
@@ -206,13 +205,13 @@ cdef void mult(double* tomat, double* mat1, unsigned int rows1, unsigned int col
                 value += mat1[j+cols1*row] * mat2[col+cols2*j]
             tomat[col + row*cols2] = value
 
-cdef void multByScalar(double* tomat, double* mat, unsigned int rows, unsigned int cols, double scalar):
+cdef void multByScalar(double * tomat, double * mat, unsigned int rows, unsigned int cols, double scalar):
     cdef unsigned int i,j
     for i in range(rows):
         for j in range(cols):
             tomat[j+cols*i] = mat[j+cols*i] * scalar
 
-cdef void add(double* tomat, double* mat1, double* mat2, unsigned int rows, unsigned int cols):
+cdef void add(double * tomat, double * mat1, double * mat2, unsigned int rows, unsigned int cols):
     # no hace la verificacion de tamanos !!!!!!!
     cdef unsigned int i, j, p
     for i in range(rows):
@@ -220,7 +219,7 @@ cdef void add(double* tomat, double* mat1, double* mat2, unsigned int rows, unsi
             p = j+i*cols
             tomat[p] = mat1[p] + mat2[p]
 
-cdef void sub(double* tomat, double* mat1, double* mat2, unsigned int rows, unsigned int cols):
+cdef void sub(double * tomat, double * mat1, double * mat2, unsigned int rows, unsigned int cols):
     # no hace la verificacion de tamanos !!!!!!!
     cdef unsigned int i, j, p
     for i in range(rows):
@@ -228,10 +227,38 @@ cdef void sub(double* tomat, double* mat1, double* mat2, unsigned int rows, unsi
             p = j+i*cols
             tomat[p] = mat1[p] - mat2[p]
 
+cpdef Matrix zeros(int row, int col):
+    cdef int i
+    cdef Matrix newMat
+    newMat = Matrix()
+    col = col or row
+    newMat._m = <double *> PyMem_Malloc((row)*(col)*sizeof(double))
+    for i in range(col*row):
+        newMat._m[i] = 0.0
+    newMat._rows = (<unsigned int>row)
+    newMat._cols = (<unsigned int>col)
+    return newMat
 
-cdef class Matrix:
+cpdef Matrix identity(int n):
+    cdef int i,j,k
+    cdef Matrix newMat
+    newMat = Matrix()
+    newMat._m = <double *> PyMem_Malloc(n*n*sizeof(double))
+    k = 0
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                newMat._m[k] = 1.0
+            else:
+                newMat._m[k] = 0.0
+            k += 1
+    newMat._rows = <unsigned int>n
+    newMat._cols = <unsigned int>n
+    return newMat
+
+cdef class Matrix():
     # cdef unsigned int _rows, _cols
-    # cdef double* _m
+    # cdef double * _m
 
     def __cinit__(Matrix self, mat=None):
         # cdef unsigned int csize
@@ -240,7 +267,7 @@ cdef class Matrix:
         if isinstance(mat, (list, tuple)) and mat:
             self._rows = int(len(mat))
             self._cols = int(len(mat[0]))
-            self._m = <double*> PyMem_Malloc(self._rows * self._cols * sizeof(double))
+            self._m = <double *> PyMem_Malloc(self._rows * self._cols * sizeof(double))
             if not self._m:
                 raise MemoryError()
             for i in range(self._rows):
@@ -255,10 +282,11 @@ cdef class Matrix:
 
     def __dealloc__(Matrix self):
         PyMem_Free(self._m)
+        print("Called dealloc from matrix")
 
     #.........................................C METHODS...........................................................
 
-    cdef pushdata(Matrix self, unsigned int rows,unsigned int cols, double* datalist):
+    cdef pushdata(Matrix self, unsigned int rows,unsigned int cols, double * datalist):
         cdef unsigned int i
         PyMem_Free(self._m)
         self._m = <double *> PyMem_Malloc(rows * cols * sizeof(double))
@@ -364,7 +392,7 @@ cdef class Matrix:
         obj = cls(jsondict['m'])
         return obj
 
-    def copy(Matrix self) -> Matrix:
+    cpdef Matrix copy(Matrix self):
         return Matrix(self)
 
     def size(Matrix self) -> tuple:
@@ -389,7 +417,7 @@ cdef class Matrix:
             eigvalue, eigvect = self.eigMPmath()
         else:
             try:
-                eigvalue, eigvect = self.c_eig(tosorted)
+                eigvalue, eigvect = eig(self._m, self._rows, tosorted)
             except:
                 eigvalue, eigvect = self.eigMPmath()
 
@@ -414,7 +442,7 @@ cdef class Matrix:
         return eigvalue, eigvect
 
     #..............................operadores...............................................
-    def __add__(Matrix self, other) -> Matrix:
+    def __add__(Matrix self, other):
         cdef unsigned int i
         cdef Matrix newMat
         newMat = Matrix()
@@ -435,7 +463,7 @@ cdef class Matrix:
         newMat._cols = self._cols
         return newMat
 
-    def __sub__(Matrix self, other) -> Matrix:
+    def __sub__(Matrix self, other):
         cdef unsigned int i
         cdef Matrix newMat
         newMat = Matrix()
@@ -467,7 +495,7 @@ cdef class Matrix:
     def __ne__(Matrix self, Matrix other) -> bool:
         return not self.__eq__(other)
 
-    def __neg__(Matrix self) -> Matrix:
+    def __neg__(Matrix self):
         cdef unsigned int i
         cdef Matrix newMat
         newMat = Matrix()
@@ -478,7 +506,7 @@ cdef class Matrix:
             newMat._m[i] = self._m[i]*-1
         return newMat
 
-    def __mul__(first, other) -> Matrix:
+    def __mul__(first, other):
         cdef unsigned int row, col, j
         cdef double value
         cdef Matrix newMat
@@ -500,7 +528,7 @@ cdef class Matrix:
             newMat._m = <double *> PyMem_Malloc(other.cols * other.rows * sizeof(double))
             newMat._rows = (<Matrix>other)._rows
             newMat._cols = (<Matrix>other)._cols
-            multByScalar(newMat._m, (<Matrix>other)._m, other.rows, other.cols, first)
+            multByScalar(newMat._m, (<Matrix>other)._m, other.rows, other.cols, (<double>first))
         else:
             raise ValueError("Not implemented add")
         # newMat.pushdata(self._rows, self._cols, mm)
@@ -511,7 +539,7 @@ cdef class Matrix:
         cdef unsigned int i
         return any([fabs(self._m[i]) > presition for i in range(self._rows*self._cols)])
 
-    def __div__(Matrix self, other) -> Matrix:
+    def __div__(Matrix self, other):
         cdef unsigned int i
         cdef Matrix newMat
 
@@ -543,7 +571,7 @@ cdef class Matrix:
 
     @rows.setter
     def rows(Matrix self, unsigned int rows):
-        cdef double* mat
+        cdef double * mat
         cdef unsigned int i,j,k
         mat = <double *>PyMem_Malloc(rows*self._cols*sizeof(double))
         k = 0
@@ -563,7 +591,7 @@ cdef class Matrix:
 
     @cols.setter
     def cols(Matrix self, unsigned int cols):
-        cdef double* mat
+        cdef double * mat
         cdef unsigned int i, j, k
         mat = <double *> PyMem_Malloc(self._rows * cols * sizeof(double))
         k = 0
@@ -577,39 +605,7 @@ cdef class Matrix:
         self.pushdata(self._rows, cols, mat)
         PyMem_Free(mat)
 
-
-    @staticmethod
-    def zeros(unsigned int row, unsigned int col=0) -> Matrix:
-        cdef unsigned int i
-        cdef Matrix newMat
-        newMat = Matrix()
-        col = col or row
-        newMat._m = <double *> PyMem_Malloc((row)*(col)*sizeof(double))
-        for i in range(col*row):
-            newMat._m[i] = 0
-        newMat._rows = row
-        newMat._cols = col
-        return newMat
-
-    @staticmethod
-    def identity(unsigned int n) -> Matrix:
-        cdef unsigned int i,j,k
-        cdef Matrix newMat
-        newMat = Matrix()
-        newMat._m = <double *> PyMem_Malloc((n)*(n)*sizeof(double))
-        k = 0
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    newMat._m[k] = 1
-                else:
-                    newMat._m[k] = 0
-                k += 1
-        newMat._rows = n
-        newMat._cols = n
-        return newMat
-
-    def isSimetric(Matrix self) -> bool:
+    def isSimetric(Matrix self):
         cdef unsigned int row, col, rowm
         if self._cols != self._rows:
             return False
@@ -621,7 +617,7 @@ cdef class Matrix:
         return True
 
 
-    def transpose(Matrix self) -> Matrix:
+    cpdef Matrix transpose(Matrix self):
         cdef Matrix newMat = Matrix()
         newMat._rows = self._cols
         newMat._cols = self._rows
@@ -630,7 +626,7 @@ cdef class Matrix:
         return newMat
 
 
-    def adjugate(Matrix self) -> Matrix:
+    def adjugate(Matrix self):
         cdef Matrix newMat
         if self._rows != self._cols:
             raise ArithmeticError("The matrix should be squared for adjugate calculation")
@@ -644,7 +640,7 @@ cdef class Matrix:
     def determinant(Matrix self) -> double:
         return determinant(self._m, self._rows)
 
-    def inverse(Matrix self) -> Matrix:
+    def inverse(Matrix self):
         cdef Matrix newMat
         if self._rows != self._cols:
             raise ArithmeticError("The matrix should be squared for adjugate calculation")
@@ -655,5 +651,4 @@ cdef class Matrix:
         inverse(newMat._m, self._m, self._rows, self._cols)
         return newMat
 
-#funciones para los autovalores
 

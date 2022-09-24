@@ -1,10 +1,10 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport sqrt, M_PI, acos,  sin, cos, fabs
-from AlgTool cimport presition
-from AlgMatrix cimport Matrix
+from .AlgTool cimport presition
+from .AlgMatrix cimport Matrix
 
 
-cdef void dir(double * todouble, double * pini, double * pfin):
+cdef void vdir(double * todouble, double * pini, double * pfin):
     cdef double modulo
     cdef unsigned int i
     sub(todouble, pfin, pini)
@@ -34,15 +34,15 @@ cdef double module(double * v):
     return sqrt(dot(v, v))
 
 cdef double angle(double * v1, double * v2):
-    cdef double X
-    X = dot(v1, v2)
-    if fabs(X) > presition:
-        X = X / (module(v1) * module(v2))
+    cdef double x
+    x = dot(v1, v2)
+    if fabs(x) > presition:
+        x = x / (module(v1) * module(v2))
     else:
         return M_PI * 0.5
-    if X < -1: X = -2 - X
-    if X > 1: X = 2 - X
-    return acos(X)
+    if x < -1: x = -2 - x
+    if x > 1: x = 2 - x
+    return acos(x)
 
 cdef double distance(double * v1, double * v2):
     cdef double val = 0
@@ -64,17 +64,13 @@ cdef void copy(double * tto, double * ffrom):
         tto[i] = ffrom[i]
 
 cdef void cross(double * todouble, double * v1, double * v2):
-    "Producto BaseVectorial"
+    """Producto BaseVectorial"""
     todouble[0] = v1[1] * v2[2] - v1[2] * v2[1]
     todouble[1] = v1[2] * v2[0] - v1[0] * v2[2]
     todouble[2] = v1[0] * v2[1] - v1[1] * v2[0]
 
-cdef double * clone(double * ffrom):
-    cdef double * todouble = <double *> PyMem_Malloc(3 * sizeof(double))
-    copy(todouble, ffrom)
-    return todouble
 
-cdef tuple totuple(double * v):
+cdef tuple toTuple(double * v):
     return (v[0], v[1], v[2])
 
 cdef void project(double * todouble, double * v1, double * v2):
@@ -105,6 +101,7 @@ cdef class Vector():
                 self._v[1] = coord[0][1]
                 self._v[2] = coord[0][2]
             elif coord[0] is None:  # esto lo usare cuando quiera reservar memoria pero no llenarlo
+                print("llamada a vector nulo")
                 return
                 # raise NotImplementedError("You cannot use None as argument")
         elif len(coord) == 3:
@@ -118,18 +115,18 @@ cdef class Vector():
             return
         else:
             raise NotImplementedError("You cannot initialize a vector with %d arguments" % len(coord))
-        print("Called cinit")
+        # print("Called cinit")
 
     def __dealloc__(self):
         PyMem_Free(self._v)
-        print("Called dealloc")
+        # print("Called dealloc")
 
     @property
-    def module(self)-> float:
+    def module(self) -> float:
         return module(self._v)
 
     @module.setter
-    def module(Vector self, value):
+    def module(Vector self, float value):
         cdef double m = module(self._v)
         if m:
             self._v[0] = self._v[0] * value / m
@@ -177,16 +174,19 @@ cdef class Vector():
     def distance(Vector v1, Vector v2) -> float:
         return distance(v1._v, v2._v)
 
-    def rotate(Vector v, Vector axis, angle) -> Vector:
-        cdef double * uvectv = <double *> PyMem_Malloc(3 * sizeof(double))
+    def rotate(Vector v, Vector axis, angle):
+        cdef double * uvectv
         cdef unsigned int i
         cdef Vector u = Vector()
         cdef double sinangle, cosangle, uv, uu
+        cdef double axismodule
+        uvectv = <double *> PyMem_Malloc (3 * sizeof(double))
         try:
+            axismodule = module(axis._v)
             sinangle = sin(angle * 0.5)
             cosangle = cos(angle * 0.5)
             for i in range(3):
-                u._v[i] = sinangle * axis[i] / axis.module
+                u._v[i] = sinangle * axis[i] / axismodule
             cross(uvectv, u._v, v._v)
             uu = dot(u._v, u._v)
             uv = dot(u._v, v._v)
@@ -196,7 +196,7 @@ cdef class Vector():
         finally:
             PyMem_Free(uvectv)
 
-    def project(Vector v1, Vector v2) -> Vector:
+    def project(Vector v1, Vector v2):
         "project one Vector onto the second"
         cdef Vector newVect = Vector()
         project(newVect._v, v1._v, v2._v)
@@ -228,7 +228,7 @@ cdef class Vector():
         return self.copy()
 
     #....................OPERADORES......................................
-    def __add__(Vector self, Vector other) -> Vector:
+    def __add__(Vector self, Vector other):
         cdef Vector newVector = Vector()
         add(newVector._v, self._v, other._v)
         return newVector
@@ -238,7 +238,7 @@ cdef class Vector():
         self._v[1] = self._v[1] + other._v[1]
         self._v[2] = self._v[2] + other._v[2]
 
-    def __sub__(Vector self, Vector other) -> Vector:
+    def __sub__(Vector self, Vector other):
         cdef Vector  newVector = Vector()
         newVector._v[0] = self._v[0] - other._v[0]
         newVector._v[1] = self._v[1] - other._v[1]
@@ -251,12 +251,12 @@ cdef class Vector():
         self._v[2] = self._v[2] - other._v[2]
 
     def __eq__(Vector self, Vector other) -> bool:
-        return isEqual(self._v, other._v)
+        return bool(isEqual(self._v, other._v))
 
     def __ne__(Vector self, Vector other):
         return not self.__eq__(other)
 
-    def __neg__(Vector self) -> Vector:
+    def __neg__(Vector self):
         cdef Vector newVector = Vector()
         newVector._v[0] = -self._v[0]
         newVector._v[1] = -self._v[1]
@@ -295,7 +295,7 @@ cdef class Vector():
             del newVector
             raise ArithmeticError(self, other)
 
-    def __mod__(Vector self, Vector other) -> Vector:
+    def __mod__(Vector self, Vector other):
         cdef Vector newVector = Vector()
         cross(newVector._v, self._v, other._v)
         return newVector

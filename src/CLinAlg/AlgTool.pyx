@@ -1,9 +1,10 @@
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
+cdef double presition = 1e-6
 
-presition = 1e-6
-
-def getPresition():
+cpdef getPresition():
     return presition
 
-def setPresition(presval):
+cpdef setPresition(double presval):
     global presition
     presition = presval
+

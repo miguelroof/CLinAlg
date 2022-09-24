@@ -1,5 +1,6 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-cimport AlgMatrix
+from .AlgQuaternion cimport fromRotationMatrix
+from . cimport AlgMatrix
 
 cpdef Transformation fromRotTrans(Quaternion quat, Vector vect):
     cdef Matrix m
@@ -46,7 +47,7 @@ cdef class Transformation():
         AlgMatrix.inverse(newTransform._mat._m, self._mat._m, 4, 4)
         return newTransform
 
-    def inverse(Transformation self) -> Transformation:
+    def inverse(Transformation self):
         return self.c_inverse()
 
     cdef Vector c_transformVector(Transformation self, Vector v):
@@ -62,7 +63,7 @@ cdef class Transformation():
             newVect._v[i] = val
         return newVect
 
-    def transformVector(Transformation self, Vector v) -> Vector:
+    def transformVector(Transformation self, Vector v):
         return self.c_transformVector(v)
 
     cdef list c_transformVectorList(Transformation self, list vList):
@@ -86,7 +87,7 @@ cdef class Transformation():
             Vectores.append(newVector)
         return Vectores
 
-    def transformVectorList(Transformation self, list vList) -> list:
+    def transformVectorList(Transformation self, list vList):
         return self.c_transformVectorList(vList)
 
     #........................PYTHON...................................
@@ -113,7 +114,7 @@ cdef class Transformation():
         return quat, v
 
 
-    def copy(Transformation self, bint withRotation=True, bint withTranslation=True) -> Transformation:
+    cpdef Transformation copy(Transformation self, bint withRotation, bint withTranslation):
         if withRotation and withTranslation:
             return Transformation(self)
         elif withRotation:
@@ -123,7 +124,7 @@ cdef class Transformation():
             m.c_set(2, 3, 0)
             return Transformation(m)
         elif withTranslation:
-            m = Matrix.identity(4)
+            m = AlgMatrix.identity(4)
             for i in range(3):
                 m.c_set(i, 3, self._mat.c_get(i, 3))
             return Transformation(m)
@@ -133,7 +134,7 @@ cdef class Transformation():
             return trans
 
     @property
-    def mat(Transformation self) -> Matrix:
+    def mat(Transformation self):
         return self._mat
 
     def __mul__(Transformation self, other):

@@ -16,7 +16,7 @@ install-from-source: dist
 
 clean:
 	$(RM) -r build dist src/*.egg-info
-	$(RM) -r src/CLinAlg/{AlgTool.c, AlgVector.c, AlgMatrix.c, AlgQuaternion.c, AlgTransformation.c, AlgLine.c}
+	$(RM) -r src/CLinAlg/{AlgTool.c, AlgMatrix.c, AlgVector.c, AlgQuaternion.c, AlgLine.c, AlgTransformation.c, AlgSegment.c, AlgPlane.c, AlgWire.c, AlgSurface.c}
 	$(RM) -r .pytest_cache
 	find . -name __pycache__ -exec rm -r {} +
 	#git clean -fdX
