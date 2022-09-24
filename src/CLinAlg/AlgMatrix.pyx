@@ -282,7 +282,7 @@ cdef class Matrix():
 
     def __dealloc__(Matrix self):
         PyMem_Free(self._m)
-        print("Called dealloc from matrix")
+        # print("Called dealloc from matrix")
 
     #.........................................C METHODS...........................................................
 
@@ -400,7 +400,7 @@ cdef class Matrix():
 
     def eigMPmath(self):
         import mpmath
-        print("AlgMatrix.Matrix cannot solve eigenvalue. Use mpmath")
+        # print("AlgMatrix.Matrix cannot solve eigenvalue. Use mpmath")
         n = self.rows
         eigvalue, rot = mpmath.eig(mpmath.matrix(self.pythonize()))
         eigvalue = mpmath.diag(eigvalue)

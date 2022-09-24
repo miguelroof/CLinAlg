@@ -525,7 +525,7 @@ cdef void getNormal(double * normal, double * wirePoint, unsigned int numpoints)
     cdef int i, j
     try:
         getCDG(cdg, wirePoint, numpoints)
-        if len(numpoints) <= 2:
+        if numpoints <= 2:
             for i in range(3):
                 normal[i] = 0
             return

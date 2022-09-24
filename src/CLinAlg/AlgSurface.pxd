@@ -29,3 +29,4 @@ cdef class MatrixTriangle():
 cdef class Surface():
     cdef Matrix vectMat
     cdef MatrixTriangle triMat
+    cdef dict surfaceProp

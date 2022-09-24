@@ -101,7 +101,7 @@ cdef class Vector():
                 self._v[1] = coord[0][1]
                 self._v[2] = coord[0][2]
             elif coord[0] is None:  # esto lo usare cuando quiera reservar memoria pero no llenarlo
-                print("llamada a vector nulo")
+                # print("llamada a vector nulo")
                 return
                 # raise NotImplementedError("You cannot use None as argument")
         elif len(coord) == 3:
