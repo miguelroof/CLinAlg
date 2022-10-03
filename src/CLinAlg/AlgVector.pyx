@@ -85,82 +85,50 @@ cdef void project(double * todouble, double * v1, double * v2):
     todouble[1] = v2[1] * v1v2
     todouble[2] = v2[2] * v1v2
 
-cdef class Vector():
+cdef class PhantomVector():
 
-    def __cinit__(self, *coord):
-        if coord != (None,):
-            self._v = <double *> PyMem_Malloc(3 * sizeof(double))
-        if len(coord) == 1:
-            if isinstance(coord[0], Vector):
-                self._v[0] = (<Vector>coord[0])._v[0]
-                self._v[1] = (<Vector>coord[0])._v[1]
-                self._v[2] = (<Vector>coord[0])._v[2]
-                return
-            elif isinstance(coord[0], (list, tuple)) and len(coord[0]) == 3:
-                self._v[0] = coord[0][0]
-                self._v[1] = coord[0][1]
-                self._v[2] = coord[0][2]
-            elif coord[0] is None:  # esto lo usare cuando quiera reservar memoria pero no llenarlo
-                # print("llamada a vector nulo")
-                return
-                # raise NotImplementedError("You cannot use None as argument")
-        elif len(coord) == 3:
-            self._v[0] = coord[0]
-            self._v[1] = coord[1]
-            self._v[2] = coord[2]
-        elif len(coord) == 0:
-            self._v[0] = 0
-            self._v[1] = 0
-            self._v[2] = 0
-            return
-        else:
-            raise NotImplementedError("You cannot initialize a vector with %d arguments" % len(coord))
-        # print("Called cinit")
 
-    def __dealloc__(self):
-        PyMem_Free(self._v)
-        # print("Called dealloc")
 
     @property
     def module(self) -> float:
         return module(self._v)
 
     @module.setter
-    def module(Vector self, float value):
+    def module(PhantomVector self, float value):
         cdef double m = module(self._v)
         if m:
             self._v[0] = self._v[0] * value / m
             self._v[1] = self._v[1] * value / m
             self._v[2] = self._v[2] * value / m
 
-    def angle(Vector v1, Vector v2)-> float:
+    def angle(PhantomVector v1, PhantomVector v2)-> float:
         return angle(v1._v, v2._v)
 
     @property
-    def x(Vector self) -> float:
+    def x(PhantomVector self) -> float:
         return self._v[0]
 
     @x.setter
-    def x(Vector self, value):
+    def x(PhantomVector self, value):
         self._v[0] = value
 
     @property
-    def y(Vector self) -> float:
+    def y(PhantomVector self) -> float:
         return self._v[1]
 
     @y.setter
-    def y(Vector self, value):
+    def y(PhantomVector self, value):
         self._v[1] = value
 
     @property
-    def z(Vector self) -> float:
+    def z(PhantomVector self) -> float:
         return self._v[2]
 
     @z.setter
-    def z(Vector self, value):
+    def z(PhantomVector self, value):
         self._v[2] = value
 
-    def normalize(self)-> Vector:
+    def normalize(self):
         cdef double m = module(self._v)
         if m:
             self._v[0] = self._v[0] / m
@@ -168,13 +136,13 @@ cdef class Vector():
             self._v[2] = self._v[2] / m
         return self
 
-    def copy(Vector self) -> Vector:
+    def copy(PhantomVector self):
         return Vector(self)
 
-    def distance(Vector v1, Vector v2) -> float:
+    def distance(PhantomVector v1, PhantomVector v2) -> float:
         return distance(v1._v, v2._v)
 
-    def rotate(Vector v, Vector axis, angle):
+    def rotate(PhantomVector v, PhantomVector axis, angle):
         cdef double * uvectv
         cdef unsigned int i
         cdef Vector u = Vector()
@@ -196,79 +164,79 @@ cdef class Vector():
         finally:
             PyMem_Free(uvectv)
 
-    def project(Vector v1, Vector v2):
+    def project(PhantomVector v1, PhantomVector v2):
         "project one Vector onto the second"
         cdef Vector newVect = Vector()
         project(newVect._v, v1._v, v2._v)
         return newVect
 
-    def toList(Vector self) -> list:
+    def toList(PhantomVector self) -> list:
         cdef unsigned int i
         return [self._v[i] for i in range(3)]
 
-    def __hash__(Vector self):
+    def __hash__(PhantomVector self):
         return hash(tuple(self.toList()))
 
-    def __repr__(Vector self) -> str:
+    def __repr__(PhantomVector self) -> str:
         return 'Vector(%.2f,%.2f,%.2f)' % (self[0], self[1], self[2])
 
     def __str__(Vector self) -> str:
         return 'Vector(%.2f,%.2f,%.2f)' % (self[0], self[1], self[2])
 
-    def __getitem__(Vector self, key) -> float:
+    def __getitem__(PhantomVector self, key) -> float:
         return self._v[key]
 
-    def __setitem__(Vector self, key, value):
+    def __setitem__(PhantomVector self, key, value):
         self._v[key] = value
 
-    def __copy__(Vector self) -> Vector:
+    def __copy__(PhantomVector self):
         return self.copy()
 
-    def __deepcopy__(Vector self, memo=None)-> Vector:
+    def __deepcopy__(Vector self, memo=None):
         return self.copy()
 
     #....................OPERADORES......................................
-    def __add__(Vector self, Vector other):
+    def __add__(PhantomVector self, PhantomVector other):
         cdef Vector newVector = Vector()
         add(newVector._v, self._v, other._v)
         return newVector
 
-    def __iadd__(Vector self, Vector other):  #cuando se produce sumas dentro en un bucle tipo sum
+    def __iadd__(PhantomVector self, PhantomVector other):  #cuando se produce sumas dentro en un bucle tipo sum
         self._v[0] = self._v[0] + other._v[0]
         self._v[1] = self._v[1] + other._v[1]
         self._v[2] = self._v[2] + other._v[2]
 
-    def __sub__(Vector self, Vector other):
+    def __sub__(PhantomVector self, PhantomVector other):
         cdef Vector  newVector = Vector()
         newVector._v[0] = self._v[0] - other._v[0]
         newVector._v[1] = self._v[1] - other._v[1]
         newVector._v[2] = self._v[2] - other._v[2]
         return newVector
 
-    def __isub__(Vector self, Vector other):
+    def __isub__(PhantomVector self, PhantomVector other):
         self._v[0] = self._v[0] - other._v[0]
         self._v[1] = self._v[1] + - other._v[1]
         self._v[2] = self._v[2] - other._v[2]
 
-    def __eq__(Vector self, Vector other) -> bool:
+    def __eq__(PhantomVector self, PhantomVector other) -> bool:
         return bool(isEqual(self._v, other._v))
 
-    def __ne__(Vector self, Vector other):
+    def __ne__(PhantomVector self, PhantomVector other):
         return not self.__eq__(other)
 
-    def __neg__(Vector self):
+    def __neg__(PhantomVector self):
         cdef Vector newVector = Vector()
         newVector._v[0] = -self._v[0]
         newVector._v[1] = -self._v[1]
         newVector._v[2] = -self._v[2]
         return newVector
 
-    def __mul__(Vector self, other):
+    def __mul__(PhantomVector self, other):
         "dot product"
         cdef Vector newVector
         # print(type(other))
-        if isinstance(other, Vector) and isinstance(self, Vector):
-            return dot(self._v, (<Vector> other)._v)
+        if isinstance(other, PhantomVector) and isinstance(self, PhantomVector):
+            return dot(self._v, (<PhantomVector> other)._v)
         elif isinstance(other, (int, float)):
             newVector = Vector()
             newVector._v[0] = self._v[0] * other
@@ -281,10 +249,10 @@ cdef class Vector():
     def __rmul__(self, other):
         return self.__mul__(other)
 
-    def __bool__(Vector self)-> bool:
+    def __bool__(PhantomVector self)-> bool:
         return True if (self._v[0] or self._v[1] or self._v[2]) else False
 
-    def __truediv__(Vector self, other):
+    def __truediv__(PhantomVector self, other):
         cdef Vector newVector = Vector()
         if isinstance(other, (int, float)) and other != 0:
             newVector._v[0] = self._v[0] / other
@@ -295,10 +263,48 @@ cdef class Vector():
             del newVector
             raise ArithmeticError(self, other)
 
-    def __mod__(Vector self, Vector other):
+    def __mod__(PhantomVector self, PhantomVector other):
         cdef Vector newVector = Vector()
         cross(newVector._v, self._v, other._v)
         return newVector
+
+
+
+
+cdef class Vector(PhantomVector):
+
+    def __cinit__(self, *coord, **kwargs):
+        if coord == (None):
+            pass
+        else:
+            self._v = <double *> PyMem_Malloc(3 * sizeof(double))
+
+    def __init__(self, *coord, **kwargs):
+        if len(coord) == 1:
+            if isinstance(coord[0], PhantomVector):
+                self._v[0] = (<PhantomVector>coord[0])._v[0]
+                self._v[1] = (<PhantomVector>coord[0])._v[1]
+                self._v[2] = (<PhantomVector>coord[0])._v[2]
+                return
+            elif isinstance(coord[0], (list, tuple)) and len(coord[0]) == 3:
+                self._v[0] = coord[0][0]
+                self._v[1] = coord[0][1]
+                self._v[2] = coord[0][2]
+            elif coord[0] is None:  # esto lo usare cuando quiera reservar memoria pero no inicializarla
+                return
+                # raise NotImplementedError("You cannot use None as argument")
+        elif len(coord) == 3:
+            self._v[0] = coord[0]
+            self._v[1] = coord[1]
+            self._v[2] = coord[2]
+        elif len(coord) == 0:
+            return
+        else:
+            raise NotImplementedError("You cannot initialize a vector with %d arguments" % len(coord))
+
+    def __dealloc__(self):
+        PyMem_Free(self._v)
+
 
     def __json__(self):
         return {'__jsoncls__': 'CLinAlg.AlgVector:Vector.from_JSON', 'vector': (self._v[0], self._v[1], self._v[2])}
@@ -307,17 +313,3 @@ cdef class Vector():
     def from_JSON(cls, jsondict):
         cdef Vector newVector = Vector(jsondict['vector'])
         return newVector
-
-
-cdef class PhantomVector(Vector):
-    def __cinit__(self,*args):
-        pass
-
-    def setPointer(PhantomVector self, *args):
-        if len(args) == 1 and isinstance(args[0], Vector):
-            self._v = (<Vector> args[0])._v
-        elif len(args) == 2 and isinstance(args[0], Matrix) and isinstance(args[1], int):
-            self._v = &(<Matrix> args[0])._m[args[1]]
-
-    def __dealloc__(PhantomVector self):
-        pass  # no quiero que lo elimine dado que solo es una referencia

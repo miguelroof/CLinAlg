@@ -131,20 +131,17 @@ cdef class Plane:
         return offsetToPoint(self, p._v, (<Vector>direction)._v)
         
     def getLocalCoords(self, point:Vector):
-        cdef Vector v = Vector(None)
-        v._v = <double *> PyMem_Malloc (3 * sizeof(double))
+        cdef Vector v = Vector()
         getLocalCoords(v._v, self, point._v)
         return v
     
     def getGlobalCoords(self, point:Vector):
-        cdef Vector v = Vector(None)
-        v._v = <double *> PyMem_Malloc (3 * sizeof(double))
+        cdef Vector v = Vector()
         getGlobalCoords(v._v, self, point._v)
         return v
             
     def projectPoint(self, p:Vector, direction=None):
-        cdef Vector v = Vector(None)
-        v._v = <double *> PyMem_Malloc (3 * sizeof(double))
+        cdef Vector v = Vector()
         if direction is None:
             direction = self.axis
         projectPoint(v._v, self, p._v, (<Vector>direction)._v)

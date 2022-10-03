@@ -2,6 +2,7 @@ from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport sqrt, pow, fabs
 from .AlgTool cimport presition
 
+
 cdef double determinant(double * mat, unsigned int rows):
     cdef double data, compose
     cdef unsigned int i,j,k, curind
@@ -256,6 +257,39 @@ cpdef Matrix identity(int n):
     newMat._cols = <unsigned int>n
     return newMat
 
+cdef bint hasLine(double * mat, unsigned int rows, unsigned int cols, double * vector, bint byRows):
+    """
+    Function that returns if a matrix contains a vector, secuentially. dont spect great choses
+    :param mat: double pointer with the matrix
+    :param vector: double pointer with the values to compare
+    :param numval: num of point of the vector
+    :returns: True if founded, otherwhise false
+    """
+    cdef unsigned int i = 0
+    cdef unsigned int r, c
+    cdef bint isEqual
+    if byRows:
+        for r in range(rows):
+            isEqual = True
+            for c in range(cols):
+                if fabs(mat[r*cols+c]-vector[c]) > presition:
+                    isEqual = False
+                    break
+            if isEqual:
+                return True
+    else:
+        for c in range(cols):
+            isEqual = True
+            for r in range(rows):
+                if fabs(mat[r*cols+c]-vector[r]) > presition:
+                    isEqual = False
+                    break
+            if isEqual:
+                return True
+    return False
+
+
+
 cdef class Matrix():
     # cdef unsigned int _rows, _cols
     # cdef double * _m
@@ -282,7 +316,6 @@ cdef class Matrix():
 
     def __dealloc__(Matrix self):
         PyMem_Free(self._m)
-        # print("Called dealloc from matrix")
 
     #.........................................C METHODS...........................................................
 
@@ -650,5 +683,9 @@ cdef class Matrix():
         newMat._m = <double *> PyMem_Malloc(self._rows*self._cols*sizeof(double))
         inverse(newMat._m, self._m, self._rows, self._cols)
         return newMat
+
+
+
+
 
 

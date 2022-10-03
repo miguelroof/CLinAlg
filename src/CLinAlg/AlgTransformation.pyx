@@ -38,6 +38,9 @@ cdef class Transformation():
             for i in range(16):
                 self._mat._m[i] = (<Matrix> matrix4x4)._m[i]
 
+    def __dealloc__(self):
+        pass
+
 
     #...........................C.....................................
     cdef Transformation c_inverse(Transformation self):
@@ -51,10 +54,9 @@ cdef class Transformation():
         return self.c_inverse()
 
     cdef Vector c_transformVector(Transformation self, Vector v):
-        cdef Vector newVect
+        cdef Vector newVect = Vector()
         cdef unsigned int i, j
         cdef double val
-        newVect = Vector()
         for i in range(3):
             val = 0
             for j in range(3):

@@ -23,8 +23,8 @@ cdef tuple toTuple(double * v)
 
 cdef void project(double * todouble, double * v1, double * v2)
 
-cdef class Vector():
+cdef class PhantomVector():
     cdef double * _v
 
-cdef class PhantomVector(Vector):
+cdef class Vector(PhantomVector):
     pass

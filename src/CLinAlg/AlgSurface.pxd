@@ -1,6 +1,7 @@
 from .AlgMatrix cimport Matrix
+from .AlgWire cimport IndexPerimeter
 
-cdef list tessellate(double * surfPoint, unsigned int numpoints)
+cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer)
 
 cdef double getArea(Surface surf)
 
@@ -14,6 +15,14 @@ cdef bint isInside(Surface surf, double * point, bint incEdge)
 
 cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint incEdge)
 
+cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int * indexTriangle, double * linepnt, double * linedir)
+
+cdef list _getPerimeterByTriangleIndex(list indTri)
+
+cdef list _getSurfaceByTriangleIndex(list triIndex)
+
+cdef list splitByLine(Surface surf, double * linepnt, double * linedir)
+
 cdef (double, double, double, double) boundRectangle(Surface surf, int v1, int v2)
 
 cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * to_point)
@@ -21,12 +30,12 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
 cpdef tuple mainAxisInertia(Matrix tensor)
 
 
-cdef class MatrixTriangle():
+cdef class IndexTriangle():
     cdef int * _m
-    cdef unsigned int _rows
-    cpdef void setList(MatrixTriangle self, list data)
+    cdef unsigned int _ntriangle
+    cpdef void setList(IndexTriangle self, list data)
 
 cdef class Surface():
     cdef Matrix vectMat
-    cdef MatrixTriangle triMat
-    cdef dict surfaceProp
+    cdef IndexTriangle indTri
+    cdef IndexPerimeter indPer

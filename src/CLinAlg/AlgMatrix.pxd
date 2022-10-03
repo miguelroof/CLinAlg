@@ -28,7 +28,7 @@ cpdef Matrix zeros(int row, int col)
 
 cpdef Matrix identity(int n)
 
-
+cdef bint hasLine(double * mat, unsigned int rows, unsigned int cols, double * vector, bint byRows)
 
 cdef class Matrix:
     cdef unsigned int _rows, _cols
@@ -40,9 +40,6 @@ cdef class Matrix:
     cpdef void deleteColumn(Matrix self, unsigned int col)
     cpdef Matrix copy(Matrix self)
     cpdef Matrix transpose(Matrix self)
-
-
-
 
 
 

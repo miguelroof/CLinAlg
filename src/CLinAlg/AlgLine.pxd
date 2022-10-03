@@ -11,6 +11,13 @@ cdef bint isParallel(double * pnt1, double * dir1, double * pnt2, double * dir2)
 
 cdef bint getIntersectionPoint(double * toPoint, double * pnt1, double * dir1, double * pnt2, double * dir2)
 
-cdef class Line():
+cdef void getParametricPoint(double * toPoint, double * pnt, double * dir, double s)
+
+cdef (bint, double) getParameter(double * pnt, double * dir, double * point)
+
+cdef class PhantomLine():
     cdef double * _pnt
     cdef double * _dir
+
+cdef class Line(PhantomLine):
+    pass

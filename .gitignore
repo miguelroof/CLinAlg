@@ -1,0 +1,7 @@
+/dist/
+/build/
+*.pyd
+*.c
+/instrucciones
+/src/CLinAlg.egg-info/
+/.idea/

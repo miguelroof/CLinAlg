@@ -9,9 +9,10 @@ cdef bint getIntersectionPointWithLine(double * toPoint, double * pini, double *
 cdef bint getIntersectionPointWithSegment(double * toPoint, double * pini1, double * pfin1,
                                               double * pini2, double * pfin2, bint incEdge)
 
-cdef class Segment():
+cdef class PhantomSegment():
     cdef double * _vini
     cdef double * _vfin
 
-cdef class PhantomSegment(Segment):
+
+cdef class Segment(PhantomSegment):
     pass
