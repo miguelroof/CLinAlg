@@ -740,6 +740,11 @@ cdef class Wire:
         getCDG(v._v, self.vectMat._m, self.indPer._m, self.indPer._npoint)
         return v
 
+    def normal(self):
+        cdef Vector v = Vector()
+        getNormal(v._v, self.vectMat._m, self.indPer._m, self.indPer._npoint)
+        return v
+
     def isClosed(self):
         return isClosed(self.vectMat._m, self.indPer._m, self.indPer._npoint)
 

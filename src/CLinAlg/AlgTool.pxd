@@ -1,6 +1,6 @@
 
 cdef double presition
 
-cpdef getPresition()
+cpdef double getPresition()
 
-cpdef setPresition(double presval)
+cpdef void setPresition(double presval)

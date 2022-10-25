@@ -2,7 +2,7 @@ import sys
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport M_PI, fabs
 from .AlgTool cimport presition
-from .cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
+from . cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
 
 cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer):
     """
@@ -369,13 +369,14 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
                                                               &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
                                                               <bint> True):  # corte b-c
         cut2 = 4
-    if cut1 + cut2 == 3:  # tengo que verificar si los dos puntos de corte se encuentran sobre el mismo segmento
+    if cut1 + cut2 in (3,5,6):  # tengo que verificar si los dos puntos de corte se encuentran sobre el mismo segmento
         for i in range(3):
             if AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3], &wirePoint[indexTriangle[(i + 1) % 3] * 3], v1,
                                    <bint> True) and AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3],
                                                                         &wirePoint[indexTriangle[(i + 1) % 3] * 3], v2,
                                                                         <bint> True):
                 cut1 = cut2 = 0
+                # print("Ambos puntos estan dentro de la linea")
                 break
     return cut1 + cut2
 
@@ -630,20 +631,20 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
                         AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri + i] * 3], linepnt)
                         vposit = AlgVector.dot(vtemp1, vpos)
                         break
-                    if vposit > 0:  # todos los putnos estan a la izquierda
-                        for ph in (phv0, phv1, phv2):
-                            if ph in pointsLeft:
-                                triIndexLeft.append(pointsLeft.index(ph))
-                            else:
-                                pointsLeft.append(ph.copy())
-                                triIndexLeft.append(len(pointsLeft) - 1)
-                    elif vposit < 0:
-                        for ph in (phv0, phv1, phv2):
-                            if ph in pointsRight:
-                                triIndexRight.append(pointsRight.index(ph))
-                            else:
-                                pointsRight.append(ph.copy())
-                                triIndexRight.append(len(pointsRight) - 1)
+                if vposit > 0:  # todos los putnos estan a la izquierda
+                    for ph in (phv0, phv1, phv2):
+                        if ph in pointsLeft:
+                            triIndexLeft.append(pointsLeft.index(ph))
+                        else:
+                            pointsLeft.append(ph.copy())
+                            triIndexLeft.append(len(pointsLeft) - 1)
+                elif vposit < 0:
+                    for ph in (phv0, phv1, phv2):
+                        if ph in pointsRight:
+                            triIndexRight.append(pointsRight.index(ph))
+                        else:
+                            pointsRight.append(ph.copy())
+                            triIndexRight.append(len(pointsRight) - 1)
         # ya tengo todos los triangulos. Ahora tengo que reagrupar los triangulos para que sean coherentes
         # leftside
         if pointsLeft:
@@ -870,15 +871,13 @@ cdef class Surface():
         wire.indPer = self.indPer
         return wire
 
-    @property
-    def Segments(self):
-        "Return edges as iterator"
-        return AlgWire.SegmentIterator(self.vectMat, self.indPer)
 
     @property
-    def Points(self):
+    def Point(self):
         "Return points as iterator"
-        return AlgWire.PointIterator(self.vectMat, self.indPer)
+        cdef AlgWire.IndexPerimeter indper = AlgWire.IndexPerimeter()
+        indper.setList(list(range(self.vectMat._rows)))
+        return AlgWire.PointIterator(self.vectMat, indper)
 
     def area(self):
         return getArea(self)

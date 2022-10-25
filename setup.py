@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import os
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, Extension
 
 try:
     from Cython.Build import cythonize
@@ -25,7 +25,7 @@ def no_cythonize(extensions, **_ignore):
         extension.sources[:] = sources
     return extensions
 
-
+# for debuggin: Extension("CLinAlg.AlgTool", ["src/CLinAlg/AlgTool.pyx"], extra_compile_args=["-Ox", "-Zi"], extra_link_args=["-debug:full"])
 extensions = [
     Extension("CLinAlg.AlgTool", ["src/CLinAlg/AlgTool.pyx"]),
     Extension("CLinAlg.AlgMatrix", ["src/CLinAlg/AlgMatrix.pyx"]),
@@ -39,10 +39,11 @@ extensions = [
     Extension("CLinAlg.AlgSurface", ["src/CLinAlg/AlgSurface.pyx"]),
 ]
 
-CYTHONIZE = bool(int(os.getenv("CYTHONIZE", 0))) and cythonize is not None
+CYTHONIZE = bool(int(os.getenv("CYTHONIZE", 1))) and cythonize is not None
 
 if CYTHONIZE:
     compiler_directives = {"language_level": 3, "embedsignature": True}
+    # extensions = cythonize(extensions, compiler_directives=compiler_directives, gdb_debug=True)
     extensions = cythonize(extensions, compiler_directives=compiler_directives)
 else:
     extensions = no_cythonize(extensions)

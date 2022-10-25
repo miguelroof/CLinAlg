@@ -1,5 +1,5 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from . cimport AlgVector
+from .cimport AlgVector
 from .AlgTool cimport presition
 from .AlgVector cimport Vector, PhantomVector
 from libc.math cimport M_PI, fabs
@@ -12,7 +12,7 @@ cdef void projectedPoint(double * toPointer, double * pnt, double * dir, double 
         toPointer[i] = pnt[i] + val * dir[i]
 
 cdef double distanceToPoint(double * pnt, double * dir, double * point):
-    cdef double * projpoint = <double *> PyMem_Malloc (3 * sizeof(double))
+    cdef double * projpoint = <double *> PyMem_Malloc(3 * sizeof(double))
 
     try:
         projectedPoint(projpoint, pnt, dir, point)
@@ -67,7 +67,6 @@ cdef bint getIntersectionPoint(double * toPoint, double * pnt1, double * dir1, d
                     return True
     return False
 
-
 cdef void getParametricPoint(double * toPoint, double * pnt, double * dir, double s):
     """
     Returns parametric point for a line
@@ -79,8 +78,7 @@ cdef void getParametricPoint(double * toPoint, double * pnt, double * dir, doubl
     """
     cdef unsigned int i
     for i in range(3):
-        toPoint[i] = pnt[i] + s*dir[i]
-
+        toPoint[i] = pnt[i] + s * dir[i]
 
 cdef (bint, double) getParameter(double * pnt, double * dir, double * point):
     """
@@ -95,12 +93,10 @@ cdef (bint, double) getParameter(double * pnt, double * dir, double * point):
     if isInside(pnt, dir, point):
         for i in range(3):
             if dir[i] != 0:
-                return True, (point[i]-pnt[i]) / dir[i]
+                return True, (point[i] - pnt[i]) / dir[i]
         return False, 0
     else:
         return False, 0
-
-
 
     #.............................C METHODS..........................................................from
 
@@ -109,69 +105,72 @@ cdef class PhantomLine():
 
     @property
     def point(self):
-        cdef AlgVector.PhantomVector pnt = AlgVector.PhantomVector()
+        cdef PhantomVector pnt = PhantomVector()
         pnt._v = self._pnt
         return pnt
 
     @property
     def direction(self):
-        cdef AlgVector.PhantomVector dir = AlgVector.PhantomVector()
+        cdef PhantomVector dir = PhantomVector()
         dir._v = self._dir
         return dir
 
-    def projectedPoint(self, point: AlgVector.Vector):
+    def projectedPoint(self, point: PhantomVector):
         cdef Vector vaux = Vector()
         projectedPoint(vaux._v, self._pnt, self._dir, point._v)
         return vaux
 
-    def distanceToPoint(self, point: AlgVector.Vector):
+    def distanceToPoint(self, point: PhantomVector):
         return distanceToPoint(self._pnt, self._dir, point._v)
 
-    def getParametricPoint(self, s:float):
+    def getParametricPoint(self, s: float):
         cdef Vector newVect = Vector()
         getParametricPoint(newVect._v, self._pnt, self._dir, s)
         return newVect
 
-    def isInside(self, Vector point):
+    def isInside(self, point: PhantomVector):
         return isInside(self._pnt, self._dir, point._v)
 
     def copy(self):
         return Line(self)
 
-    def getParameter(self, Vector point):
+    def getParameter(self, point: PhantomVector):
         param = getParameter(self._pnt, self._dir, point._v)
         if param[0]:
             return param[1]
         else:
             return None
 
-    def isPerpendicular(self, Line other):
+    def isPerpendicular(self, other: PhantomLine):
         return isPerpendicular(self._pnt, self._dir, other._pnt, other._dir)
 
-    def isParallel(self, Line other):
+    def isParallel(self, other: PhantomLine):
         return isParallel(self._pnt, self._dir, other._pnt, other._dir)
 
-    def getIntersectionPoint(self, Line other):
+    def getIntersectionPoint(self, other: PhantomLine):
         cdef Vector newVect = Vector()
         if not getIntersectionPoint(newVect._v, self._pnt, self._dir, other._pnt, other._dir):
             return None
         return newVect
 
-    def __eq__(self, other) -> bool:
-        if self.isParallel(other) and self.isInside(other.Point):
+    def __eq__(self, other: PhantomLine) -> bool:
+        if self.isParallel(other) and self.isInside(other.point):
             return True
         return False
 
-    def __ne__(self, other):
+    def __ne__(self, other: PhantomLine):
         return not self.__eq__(other)
 
-    def __repr__(Line self) -> str:
+    def __repr__(self) -> str:
         return "Line(Pnt:" + str(AlgVector.toTuple(self._pnt)) + "; Dir:" + str(AlgVector.toTuple(self._dir)) + ")"
 
-
+    def __hash__(self):
+        cdef unsigned int i
+        cdef tuple tup
+        tup = tuple(self._pnt[i] for i in range(3)) + tuple(self._dir[i] for i in range(3))
+        return hash(tup)
 
 cdef class Line(PhantomLine):
-
     def __cinit__(self, *args, **kwargs):
         if args != (None):
             self._pnt = <double *> PyMem_Malloc(3 * sizeof(double))
@@ -197,9 +196,9 @@ cdef class Line(PhantomLine):
         PyMem_Free(self._pnt)
         PyMem_Free(self._dir)
 
-
     def __json__(Line self) -> dict:
-        return {'__jsoncls__': 'CLinAlg.AlgLine:Line.from_JSON', 'pnt': AlgVector.toTuple(self._pnt), 'dir': AlgVector.toTuple(self._dir)}
+        return {'__jsoncls__': 'CLinAlg.AlgLine:Line.from_JSON', 'pnt': AlgVector.toTuple(self._pnt),
+                'dir': AlgVector.toTuple(self._dir)}
 
     @classmethod
     def from_JSON(cls, jsondict):
