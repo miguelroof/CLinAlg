@@ -2,7 +2,7 @@ import sys
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport M_PI, fabs
 from .AlgTool cimport presition
-from . cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
+from .cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
 
 cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer):
     """
@@ -369,7 +369,7 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
                                                               &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
                                                               <bint> True):  # corte b-c
         cut2 = 4
-    if cut1 + cut2 in (3,5,6):  # tengo que verificar si los dos puntos de corte se encuentran sobre el mismo segmento
+    if cut1 + cut2 in (3, 5, 6):  # tengo que verificar si los dos puntos de corte se encuentran sobre el mismo segmento
         for i in range(3):
             if AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3], &wirePoint[indexTriangle[(i + 1) % 3] * 3], v1,
                                    <bint> True) and AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3],
@@ -761,6 +761,46 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
     finally:
         PyMem_Free(vdir)
 
+cpdef tuple trapezeToSurfaceYZ(list trapeze):
+    "Function that convert trapeze list [[h 0, bs 1, bi 2, es 3, ei 4, sym 5]... ] into surface object. The trapezes will be defined from upper to lower"
+    cdef int i
+    cdef list trap, nextTrap
+    #averiguo todas las interferencias
+    if trapeze[i + 1][5]:  # simetrico
+        if abs(trapeze[i + 1][3]) - trapeze[i + 1][
+            1] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
+            brange = [-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, -abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5,
+                      abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5]
+        else:  # se produden 2 rangos
+            brange = [
+                (-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
+    else:
+        brange = [(trapeze[i + 1][3] - trapeze[i + 1][1] * 0.5, trapeze[i + 1][3] + trapeze[i + 1][1] * 0.5)]
+
+    for i in range(len(trapeze) - 1):
+        if trapeze[i][5]:  # simetrico
+            if abs(trapeze[i][4]) - trapeze[i][
+                2] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
+                trange = [(-abs(trapeze[i][4]) - trapeze[i][2] * 0.5, -abs(trapeze[i][4]) + trapeze[i][2] * 0.5),
+                          (abs(trapeze[i][4]) - trapeze[i][2] * 0.5, abs(trapeze[i][4]) + trapeze[i][2] * 0.5)]
+            else:  # se produden 2 rangos
+                trange = [(-abs(trapeze[i][4]) - trapeze[i][2] * 0.5, abs(trapeze[i][4]) + trapeze[i][2] * 0.5)]
+        else:
+            trange = [(trapeze[i][4] - trapeze[i][2] * 0.5, trapeze[i][4] + trapeze[i][2] * 0.5)]
+        if trapeze[i + 1][5]:  # simetrico
+            if abs(trapeze[i + 1][3]) - trapeze[i + 1][
+                1] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
+                brange = [(-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
+                           -abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5),
+                          (abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
+                           abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
+            else:  # se produden 2 rangos
+                brange = [(-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
+                           abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
+        else:
+            brange = [(trapeze[i + 1][3] - trapeze[i + 1][1] * 0.5, trapeze[i + 1][3] + trapeze[i + 1][1] * 0.5)]
+        grange = sorted()
+
 cpdef tuple mainAxisInertia(Matrix tensor):
     """Returns Inertia in main axis.
     Parameters:
@@ -870,7 +910,6 @@ cdef class Surface():
         wire.vectMat = self.vectMat
         wire.indPer = self.indPer
         return wire
-
 
     @property
     def Point(self):
