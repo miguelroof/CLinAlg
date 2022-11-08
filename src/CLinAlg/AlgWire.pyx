@@ -1,5 +1,5 @@
 import sys
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 from libc.math cimport M_PI, sin, fabs
 from .AlgVector cimport Vector
 from . cimport AlgVector, AlgSegment, AlgQuaternion, AlgMatrix, AlgLine
@@ -529,8 +529,15 @@ cdef class IndexPerimeter():
 
     cpdef void setList(IndexPerimeter self, list cdata):
         cdef int i
-        PyMem_Free(self._m)
-        self._m = <int *> PyMem_Malloc(len(cdata) * sizeof(int))
+        if self._m:
+            mem = <int *> PyMem_Realloc(self._m, len(cdata) * sizeof(int))
+            if not mem:
+                raise MemoryError()
+            self._m = mem
+        else:
+            self._m = <int *> PyMem_Malloc(len(cdata) * sizeof(int))
+            if not self._m:
+                raise MemoryError()
         self._npoint = <unsigned int>(len(cdata))
         for i in range(len(cdata)):
             self._m[i] = <int>(cdata[i])
@@ -731,6 +738,15 @@ cdef class Wire:
 
     cpdef double length(self):
         return getLength(self.vectMat._m, self.indPer._m, self.indPer._npoint)
+
+    cpdef list getBounds(self):
+        cdef list bound = [sys.float_info.max, -sys.float_info.max, sys.float_info.max, -sys.float_info.max, sys.float_info.max, -sys.float_info.max]
+        cdef int j
+        for p in self.Point:
+            for j in range(3):
+                bound[j*2] = min(bound[j*2], p[j])
+                bound[j*2+1] = max(bound[j*2+1], p[j])
+        return bound
 
     def isInside(self, point:Vector, bint incEdges=True):
         return isInside(self.vectMat._m, self.indPer._m, self.indPer._npoint, point._v, <bint>incEdges)

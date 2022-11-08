@@ -1,5 +1,5 @@
 import sys
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 from libc.math cimport M_PI, fabs
 from .AlgTool cimport presition
 from .cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
@@ -376,7 +376,6 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
                                                                         &wirePoint[indexTriangle[(i + 1) % 3] * 3], v2,
                                                                         <bint> True):
                 cut1 = cut2 = 0
-                # print("Ambos puntos estan dentro de la linea")
                 break
     return cut1 + cut2
 
@@ -425,14 +424,12 @@ cdef list _getPerimeterByTriangleIndex(list indTri):
             i += 1
 
         if not founded and tupLat:
-            # print(".............ha fallado aqui..........", indTri, outerIndex)
             if outerIndex[0] != outerIndex[-1]:
-                raise ValueError("Not closed contour with this triangles indexes")
+                raise ValueError("Not closed contour with this triangles indexes and tupLat value")
             outerList.append(outerIndex)
             outerIndex = [tupLat[0][0], tupLat[0][1]]
             tupLat.pop(0)
     if outerIndex[0] != outerIndex[-1]:
-        # print(".............ha fallado aqui..........", indTri, outerIndex)
         raise ValueError("Not closed contour with this triangles indexes")
     outerList.append(outerIndex)
     return outerList
@@ -443,9 +440,7 @@ cdef list _getSurfaceByTriangleIndex(list triIndex):
     cdef int numTri = <int> len(triIndex) // 3
     cdef int pa, pb, pc, itri, i, j
     cdef list surfaces, surf, psurf, listTri
-
     cdef bint founded
-
     for i in range(numTri):
         pa, pb, pc = list(sorted([triIndex[i * 3 + j] for j in range(3)]))
         triangulos[i] = [(pa, pb), (pa, pc), (pb, pc)]
@@ -488,6 +483,7 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
     cdef double * v1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * normal = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vpos = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vtemp1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef int vcorte
@@ -496,20 +492,24 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
     cdef list pointsRight = []
     cdef list triIndexRight = []
     cdef list surfaces = []
+    cdef dict replDict
     cdef int i, j, pa, pb, pc
     cdef AlgVector.PhantomVector phv0, phv1, phv2, phc0, phc1
     cdef double vposit
     cdef dict laterales
     cdef Surface newSurf
-    cdef list tsurf, surfacesIndex, perimIndex
+    cdef list tsurf, surfacesIndex, perimIndex, tPerimIndex, tindex, tPerim
     cdef int minIndex
     cdef set pdist
+    cdef AlgWire.IndexPerimeter indPer = AlgWire.IndexPerimeter()
     try:
         AlgWire.getNormal(normal, surf.vectMat._m, surf.indPer._m, surf.indPer._npoint)
+        subnormal[0] = -normal[0]
+        subnormal[1] = -normal[1]
+        subnormal[2] = -normal[2]
         AlgVector.cross(vpos, normal, linedir)
         for itri in range(0, surf.indTri._ntriangle * 3, 3):
             vcorte = _splitTriangleByLine(v1, v2, surf.vectMat._m, &surf.indTri._m[itri], linepnt, linedir)
-            # print("vcorte", itri, vcorte)
             if vcorte == 3:  # corte entre el los vectores 0-1 (v1) y 0-2 (v2). El vector aislado es el cero
                 pindep = 0
                 phv0 = AlgVector.PhantomVector()
@@ -623,8 +623,6 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
                             pointsRight.append(ph.copy())
                             triIndexRight.append(len(pointsRight) - 1)
             else:
-                # todos los elementos estan a uno u otro lado de la linea
-                # print("he entrado aqui")
                 for i in range(3):
                     vposit = 0
                     if not AlgLine.isInside(linepnt, linedir, &surf.vectMat._m[surf.indTri._m[itri + i] * 3]):
@@ -645,53 +643,89 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
                         else:
                             pointsRight.append(ph.copy())
                             triIndexRight.append(len(pointsRight) - 1)
-        # ya tengo todos los triangulos. Ahora tengo que reagrupar los triangulos para que sean coherentes
         # leftside
         if pointsLeft:
-            # print("puntos izquierda", pointsLeft, triIndexLeft)
             surfacesIndex = _getSurfaceByTriangleIndex(triIndexLeft)
             for tsurf in surfacesIndex:
-                perimIndex = _getPerimeterByTriangleIndex(tsurf)
-                if len(perimIndex) > 1:
-                    raise ValueError("No estoy todavia preparado para superficies con huecos interiores")
                 pdist = set(tsurf)
                 minIndex = min(pdist)
                 newSurf = Surface()
                 newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
-                for i in pdist:
-                    for j in range(3):
-                        newSurf.vectMat._m[(i - minIndex) * 3 + j] = pointsLeft[i][j]
-                newSurf.indTri.setList([i - minIndex for i in tsurf])
-                newSurf.indPer.setList([i - minIndex for i in perimIndex[0]])
-                AlgWire.getNormal(vtemp1, newSurf.vectMat._m, newSurf.indPer._m, newSurf.indPer._npoint)
-                if not AlgVector.isEqual(vtemp1, normal):
-                    newSurf.indPer.setList(list(reversed(newSurf.indPer.__serialize__())))
+                replDict = {}
+                i = 0
+                for tindex in tsurf:
+                    if replDict.get(tindex) is None:
+                        for j in range(3):
+                            newSurf.vectMat._m[i * 3 + j] = pointsLeft[tindex][j]
+                        replDict[tindex] = i
+                        i += 1
+                newSurf.indTri.setList([replDict[i] for i in tsurf])
+                perimIndex = []
+                tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
+                tPerimIndex = list(zip(tPerimIndex, [min([pointsLeft[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
+                tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
+                i = 0
+                while tPerimIndex:
+                    tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
+                    indPer.setList(tPerim)
+                    AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
+                    if i == 0:
+                        if not AlgVector.isEqual(vtemp1, normal):
+                            tPerim = list(reversed(tPerim))
+                        i += 1
+                    else:
+                        if not AlgVector.isEqual(vtemp1, subnormal):
+                            tPerim = list(reversed(tPerim))
+                    perimIndex.extend(tPerim)
+                    if tPerimIndex:
+                        perimIndex.append(-1)
+                newSurf.indPer.setList(perimIndex)
                 surfaces.append(newSurf)
+        # rightside
         if pointsRight:
-            # print("puntos derecha", pointsRight, triIndexRight)
             surfacesIndex = _getSurfaceByTriangleIndex(triIndexRight)
             for tsurf in surfacesIndex:
-                perimIndex = _getPerimeterByTriangleIndex(tsurf)
-                if len(perimIndex) > 1:
-                    raise ValueError("No estoy todavia preparado para superficies con huecos interiores")
                 pdist = set(tsurf)
                 minIndex = min(pdist)
                 newSurf = Surface()
                 newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
-                for i in pdist:
-                    for j in range(3):
-                        newSurf.vectMat._m[(i - minIndex) * 3 + j] = pointsRight[i][j]
-                newSurf.indTri.setList([i - minIndex for i in tsurf])
-                newSurf.indPer.setList([i - minIndex for i in perimIndex[0]])
-                AlgWire.getNormal(vtemp1, newSurf.vectMat._m, newSurf.indPer._m, newSurf.indPer._npoint)
-                if not AlgVector.isEqual(vtemp1, normal):
-                    newSurf.indPer.setList(list(reversed(newSurf.indPer.__serialize__())))
+                replDict = {}
+                i = 0
+                for tindex in tsurf:
+                    if replDict.get(tindex) is None:
+                        for j in range(3):
+                            newSurf.vectMat._m[i * 3 + j] = pointsRight[tindex][j]
+                        replDict[tindex] = i
+                        i += 1
+                newSurf.indTri.setList([replDict[i] for i in tsurf])
+                perimIndex = []
+                tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
+                tPerimIndex = list(
+                    zip(tPerimIndex, [min([pointsRight[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
+                tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
+                i = 0
+                while tPerimIndex:
+                    tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
+                    indPer.setList(tPerim)
+                    AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
+                    if i == 0:
+                        if not AlgVector.isEqual(vtemp1, normal):
+                            tPerim = list(reversed(tPerim))
+                        i += 1
+                    else:
+                        if not AlgVector.isEqual(vtemp1, subnormal):
+                            tPerim = list(reversed(tPerim))
+                    perimIndex.extend(tPerim)
+                    if tPerimIndex:
+                        perimIndex.append(-1)
+                newSurf.indPer.setList(perimIndex)
                 surfaces.append(newSurf)
         return surfaces
     finally:
         PyMem_Free(v1)
         PyMem_Free(v2)
         PyMem_Free(normal)
+        PyMem_Free(subnormal)
         PyMem_Free(vpos)
         PyMem_Free(vtemp1)
 
@@ -761,45 +795,236 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
     finally:
         PyMem_Free(vdir)
 
-cpdef tuple trapezeToSurfaceYZ(list trapeze):
-    "Function that convert trapeze list [[h 0, bs 1, bi 2, es 3, ei 4, sym 5]... ] into surface object. The trapezes will be defined from upper to lower"
-    cdef int i
-    cdef list trap, nextTrap
-    #averiguo todas las interferencias
-    if trapeze[i + 1][5]:  # simetrico
-        if abs(trapeze[i + 1][3]) - trapeze[i + 1][
-            1] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
-            brange = [-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, -abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5,
-                      abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5]
-        else:  # se produden 2 rangos
-            brange = [
-                (-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5, abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
-    else:
-        brange = [(trapeze[i + 1][3] - trapeze[i + 1][1] * 0.5, trapeze[i + 1][3] + trapeze[i + 1][1] * 0.5)]
+cdef int _sign(double v):
+    return 1 if v >= -presition else -1
 
-    for i in range(len(trapeze) - 1):
-        if trapeze[i][5]:  # simetrico
-            if abs(trapeze[i][4]) - trapeze[i][
-                2] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
-                trange = [(-abs(trapeze[i][4]) - trapeze[i][2] * 0.5, -abs(trapeze[i][4]) + trapeze[i][2] * 0.5),
-                          (abs(trapeze[i][4]) - trapeze[i][2] * 0.5, abs(trapeze[i][4]) + trapeze[i][2] * 0.5)]
-            else:  # se produden 2 rangos
-                trange = [(-abs(trapeze[i][4]) - trapeze[i][2] * 0.5, abs(trapeze[i][4]) + trapeze[i][2] * 0.5)]
+cdef list _getP(list trap, bint sup):
+    cdef double _b, _e
+    if sup:
+        _b = trap[1]
+        _e = trap[3]
+    else:
+        _b = trap[2]
+        _e = trap[4]
+    if _b < presition:
+        return [_e]
+    if trap[5]:
+        if abs(abs(_e) - 0.5 * _b) > presition:
+            return [-abs(_e) - 0.5 * _b, -abs(_e) + 0.5 * _b, abs(_e) - 0.5 * _b, abs(_e) + 0.5 * _b]
         else:
-            trange = [(trapeze[i][4] - trapeze[i][2] * 0.5, trapeze[i][4] + trapeze[i][2] * 0.5)]
-        if trapeze[i + 1][5]:  # simetrico
-            if abs(trapeze[i + 1][3]) - trapeze[i + 1][
-                1] * 0.5 > 0:  # se producen 4 rangos. Los pongo ordenados de menor a mayor
-                brange = [(-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
-                           -abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5),
-                          (abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
-                           abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
-            else:  # se produden 2 rangos
-                brange = [(-abs(trapeze[i + 1][3]) - trapeze[i + 1][1] * 0.5,
-                           abs(trapeze[i + 1][3]) + trapeze[i + 1][1] * 0.5)]
-        else:
-            brange = [(trapeze[i + 1][3] - trapeze[i + 1][1] * 0.5, trapeze[i + 1][3] + trapeze[i + 1][1] * 0.5)]
-        grange = sorted()
+            return [-abs(_e) - 0.5 * _b, 0, abs(_e) + 0.5 * _b]
+    else:
+        return [_e - 0.5 * _b, _e + 0.5 * _b]
+
+cdef double _distanceYZ(double y1, double z1, double y2, double z2):
+    return ((y1 - y2) ** 2 + (z1 - z2) ** 2) ** 0.5
+
+cdef double _areaYZ(double y1, double z1, double y2, double z2, double y3, double z3):
+    return abs(0.5 * (y1 * (z2 - z3) + y2 * (z3 - z1) + y3 * (z1 - z2)))
+
+cdef double _radiusYZ(double y1, double z1, double y2, double z2, double y3, double z3):
+    "Function that computes the raduis for circumference that cross the 3 points"
+    ar = _areaYZ(y1, z1, y2, z2, y3, z3)
+    if ar:
+        return _distanceYZ(y1, z1, y2, z2) * _distanceYZ(y2, z2, y3, z3) * _distanceYZ(y3, z3, y1, z1) / (4 * ar)
+    else:
+        return sys.float_info.max
+
+cdef list _triangularize(double tn, double tp, list tlist, double bn, double bp, list blist, double h, int nstart):
+    cdef int itn, itp, ibn, ibp, i, lentList
+    cdef list triIndex = []
+    cdef double r1, r2
+
+    itn = itp = -1
+    ibn = ibp = -1
+    for i in range(len(tlist)):
+        if itn == -1 and abs(tn - tlist[i]) < presition:
+            itn = i
+        if abs(tp - tlist[i]) < presition:
+            itp = i
+            break
+    for i in range(len(blist)):
+        if ibn == -1 and abs(bn - blist[i]) < presition:
+            ibn = i
+        if abs(bp - blist[i]) < presition:
+            ibp = i
+            break
+    if ibp == -1 or itp == -1:
+        raise ArithmeticError("Not founded limits in algorithm")
+    triIndex = []
+    lentlist = len(tlist)
+    while itn < itp or ibn < ibp:
+        if itn < itp and ibn < ibp:
+            r1 = _radiusYZ(tlist[itn], h, tlist[itn + 1], h, blist[ibn], 0)
+            r2 = _radiusYZ(tlist[itn], h, blist[ibn], 0, blist[ibn + 1], 0)
+            if r1 <= r2:
+                triIndex.extend([itn + nstart, itn + 1 + nstart, nstart + lentlist + ibn])
+                itn += 1
+            else:
+                triIndex.extend([nstart + itn, nstart + lentlist + ibn, nstart + lentlist + ibn + 1])
+                ibn += 1
+        elif itn < itp:
+            triIndex.extend([itn + nstart, itn + 1 + nstart, nstart + lentlist + ibn])
+            itn += 1
+        elif ibn < ibp:
+            triIndex.extend([nstart + itn, nstart + lentlist + ibn, nstart + lentlist + ibn + 1])
+            ibn += 1
+    return triIndex
+
+cdef double _sortkey(tuple v):
+    return v[1]
+
+
+cpdef list trapezeToSurfaceYZ(list trapeces):
+    "Function that convert trapeze list [[h 0, bs 1, bi 2, es 3, ei 4, sym 5]... ] into surface object. The trapezes will be defined from upper to lower"
+    # primero chequeo todos los trapecios y si hubiera algun simetrico con incompatibilidad de desarrollo, lo divido por la mitad
+    cdef int i, npoints, nstart, tindex
+    cdef double h
+    cdef list trapMod, hpoints, tpoints, llist, triIndex, trap, pointList
+    cdef list surfaces, perimIndex, tPerimIndex, tsurf, surfacesIndex, tPerim
+    cdef dict replDict
+    cdef double * vtemp1 = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef double * normal = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef AlgWire.IndexPerimeter indPer = AlgWire.IndexPerimeter()
+    cdef Surface newSurf
+    if not vtemp1 or not normal or not subnormal:
+        raise MemoryError()
+    try:
+        i = 0
+        h = 0.0
+        trapMod = []
+        normal[0] = 1
+        normal[1] = 0
+        normal[2] = 0
+        subnormal[0] = -1
+        subnormal[1] = 0
+        subnormal[2] = 0
+        for trap in trapeces:
+            if trap[5]:
+                ts1 = trap[3] + 0.5 * trap[1]  # linea exterior f1 = ts1-(x/h)*(ts1-ti1)
+                ti1 = trap[4] + 0.5 * trap[2]
+                ts2 = trap[3] - 0.5 * trap[1]  # linea interior f2 = ts2-(x/h)*(ts2-ti2)
+                ti2 = trap[4] - 0.5 * trap[1]
+                # evaluo el corte mas superior
+                if _sign(ts2) == _sign(ti2):
+                    trapMod.append(trap[:])
+                    continue
+                xa = ts2 * trap[0] / (ts2 - ti2)
+                tsa = ts1 - (xa / trap[0]) * (ts1 - ti1)
+                trapMod.append([xa, abs(ts1 - ts2), abs(tsa), abs(0.5 * (ts1 + ts2)), abs(0.5 * tsa), 1])
+                # evaluo ahora el corte intermedio
+                if abs((ts1 - ti1) + (ts2 - ti2)) > presition:
+                    xb = trap[0] * (ts1 + ts2) / ((ts1 - ti1) + (ts2 - ti2))
+                    if xa < xb <= (trap[0] + presition):
+                        tsb = ts1 - (xb / trap[0]) * (ts1 - ti1)
+                        trapMod.append([xb - xa, abs(2 * tsa), abs(2 * tsb), 0, 0, 0])
+                    else:
+                        trapMod.append([trap[0] - xa, abs(2 * tsa), abs(2 * ti1), 0, 0, 0])
+                        continue
+                else:
+                    trapMod.append([trap[0] - xa, abs(2 * tsa), abs(2 * ti1), 0, 0, 0])
+                    continue
+                # evaluo corte inferior
+                if _sign(ts1) == _sign(ti1):
+                    trapMod.append([trap[0] - xb, abs(tsb * 2), abs(2 * ti2), 0, 0, 0])
+                    continue
+                xc = ts1 * trap[0] / (ts1 - ti1)
+                tsc = ts2 - (xc / trap[0]) * (ts2 - ti2)
+                trapMod.append([xc - xb, abs(2 * tsb), abs(2 * tsc), 0, 0, 0])
+                trapMod.append([trap[0] - xc, abs(tsc), abs(ti1 - ti2), 0.5 * abs(tsc), abs(0.5 * (ti1 + ti2)), 1])
+            else:
+                trapMod.append(trap[:])
+
+        hpoints = [sum([x[0] for x in trapMod])]
+        tpoints = [_getP(trapMod[0], True)]
+        npoints = <int> len(tpoints[0])
+
+        for i in range(<int> (len(trapMod)) - 1):
+            llist = list(sorted(_getP(trapMod[i], False) + _getP(trapMod[i + 1], True)))
+            j = 0
+            while j < len(llist) - 1:
+                if abs(llist[j] - llist[j + 1]) < presition:
+                    llist.pop(j)
+                    continue
+                j += 1
+            tpoints.append(llist)
+            hpoints.append(hpoints[-1] - trapMod[i][0])
+            npoints += <int> len(llist)
+
+        hpoints.append(hpoints[-1] - trapMod[-1][0])
+        tpoints.append(_getP(trapMod[-1], False))
+        triIndex = []
+        nstart = 0
+        for i, trap in enumerate(trapMod):
+            if trap[5]:
+                triIndex.extend(_triangularize(-abs(trap[3]) - 0.5 * trap[1], -abs(trap[3]) + 0.5 * trap[1], tpoints[i],
+                                               -abs(trap[4]) - 0.5 * trap[2], -abs(trap[4]) + 0.5 * trap[2],
+                                               tpoints[i + 1],
+                                               trap[0],
+                                               nstart))
+                triIndex.extend(_triangularize(abs(trap[3]) - 0.5 * trap[1], abs(trap[3]) + 0.5 * trap[1], tpoints[i],
+                                               abs(trap[4]) - 0.5 * trap[2], abs(trap[4]) + 0.5 * trap[2],
+                                               tpoints[i + 1],
+                                               trap[0],
+                                               nstart))
+            else:
+                triIndex.extend(_triangularize(trap[3] - 0.5 * trap[1], trap[3] + 0.5 * trap[1], tpoints[i],
+                                               trap[4] - 0.5 * trap[2], trap[4] + 0.5 * trap[2], tpoints[i + 1],
+                                               trap[0],
+                                               nstart))
+
+            nstart += <int> len(tpoints[i])
+        # genero los puntos
+        pointList = []
+        for ttrap, h in zip(tpoints, hpoints):
+            for py in ttrap:
+                pointList.append([0, py, h])
+        surfacesIndex = _getSurfaceByTriangleIndex(triIndex)
+        surfaces = []
+        for tsurf in surfacesIndex:
+            pdist = set(tsurf)
+            newSurf = Surface()
+            newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
+            replDict = {}
+            i = 0
+            for tindex in tsurf:
+                if replDict.get(tindex) is None:
+                    for j in range(3):
+                        newSurf.vectMat._m[i * 3 + j] = pointList[tindex][j]
+                    replDict[tindex] = i
+                    i += 1
+            newSurf.indTri.setList([replDict[i] for i in tsurf])
+            perimIndex = []
+            tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
+            # ordeno los perimetros de izquierda a derecha. El que tenga el valor mas a la izquierda sera necesariamente
+            tPerimIndex = list(zip(tPerimIndex, [min([pointList[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
+            tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
+            i = 0
+            while tPerimIndex:
+                tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
+                indPer.setList(tPerim)
+                AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
+                if i == 0:
+                    if not AlgVector.isEqual(vtemp1, normal):
+                        tPerim = list(reversed(tPerim))
+                    i += 1
+                else:
+                    if not AlgVector.isEqual(vtemp1, subnormal):
+                        tPerim = list(reversed(tPerim))
+                perimIndex.extend(tPerim)
+                if tPerimIndex:
+                    perimIndex.append(-1)
+            newSurf.indPer.setList(perimIndex)
+            surfaces.append(newSurf)
+        return surfaces
+    except Exception as err:
+        print(err)
+        raise
+    finally:
+        PyMem_Free(vtemp1)
+        PyMem_Free(normal)
+        PyMem_Free(subnormal)
 
 cpdef tuple mainAxisInertia(Matrix tensor):
     """Returns Inertia in main axis.
@@ -816,6 +1041,65 @@ cpdef tuple mainAxisInertia(Matrix tensor):
     eig, rot = tensor.eig(True)
     return eig, rot.transpose()
 
+cdef class WireIterator():
+    def __init__(self, vectMat: AlgMatrix.Matrix, indPer: AlgWire.IndexPerimeter):
+        self.vectMat = vectMat
+        self.indPer = indPer
+
+    def __iter__(self):
+        self.niterator = 0
+        return self
+
+    def __next__(self):
+        cdef AlgWire.Wire w
+        cdef list li = []
+        while self.niterator < self.indPer._npoint:
+            if self.indPer._m[self.niterator] == -1:
+                w = AlgWire.Wire()
+                w.vectMat = self.vectMat
+                w.indPer.setList(li)
+                self.niterator += 1
+                return w
+            else:
+                li.append(self.indPer._m[self.niterator])
+                self.niterator += 1
+        if li:
+            w = AlgWire.Wire()
+            w.vectMat = self.vectMat
+            w.indPer.setList(li)
+            return w
+        raise StopIteration
+
+    def __getitem__(self, index: int):
+        cdef unsigned int i
+        cdef AlgWire.Wire w
+        cdef list li = []
+        cdef unsigned int curInd = 0
+        cdef int count = 0
+        while count != index and curInd < self.indPer._npoint:
+            if self.indPer._m[curInd] == -1:
+                count += 1
+            curInd += 1
+        while self.indPer._m[curInd] != -1 and curInd < self.indPer._npoint:
+            li.append(self.indPer._m[curInd])
+            curInd += 1
+        if li:
+            w = AlgWire.Wire()
+            w.vectMat = self.vectMat
+            w.indPer.setList(li)
+            return w
+
+    def __len__(self):
+        cdef unsigned int i, curInd
+        if self.indPer._npoint > 1:
+            i = 1
+        else:
+            return 0
+        for curInd in range(self.indPer._npoint):
+            if self.indPer._m[curInd] == -1:
+                i += 1
+        return i
+
 cdef class IndexTriangle():
     "Objeto simple para los indices del triangulo de una superficie"
     def __cinit__(self, data=None):
@@ -827,8 +1111,13 @@ cdef class IndexTriangle():
 
     cpdef void setList(IndexTriangle self, list data):
         cdef int i
-        PyMem_Free(self._m)
-        self._m = <int *> PyMem_Malloc(len(data) * sizeof(int))
+        if self._m:
+            mem = <int *> PyMem_Realloc(self._m, len(data) * sizeof(int))
+        else:
+            mem = <int *> PyMem_Malloc(len(data) * sizeof(int))
+        if not mem:
+            raise MemoryError()
+        self._m = mem
         self._ntriangle = <unsigned int> (len(data) // 3)
         for i in range(3 * self._ntriangle):
             self._m[i] = <int> (data[i])
@@ -906,10 +1195,7 @@ cdef class Surface():
         """
         Return wire of contour
         """
-        cdef AlgWire.Wire wire = AlgWire.Wire()
-        wire.vectMat = self.vectMat
-        wire.indPer = self.indPer
-        return wire
+        return WireIterator(self.vectMat, self.indPer)
 
     @property
     def Point(self):
@@ -927,7 +1213,7 @@ cdef class Surface():
         return cdg
 
     def perimeter(self):
-        return self.Wire.perimeter()
+        return sum([x.perimeter() for x in self.Wire])
 
     def inertia(self):
         return getInertia(self)
@@ -956,10 +1242,10 @@ cdef class Surface():
         cdef Matrix axis
         inertia, axis = mainAxisInertia(self.Inertia)
         area = self.Area
-        radius = []
+        _radiusYZ = []
         for i in range(3):
-            radius.append((inertia[i] / area) ** 0.5)
-        return radius, axis
+            _radiusYZ.append((inertia[i] / area) ** 0.5)
+        return _radiusYZ, axis
 
     def isInside(self, point: AlgVector.Vector, incEdge=True):
         "Funcion que calcula si un punto esta dentro de la superficie"

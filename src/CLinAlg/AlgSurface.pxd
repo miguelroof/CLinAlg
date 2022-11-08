@@ -15,13 +15,14 @@ cdef bint isInside(Surface surf, double * point, bint incEdge)
 
 cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint incEdge)
 
-cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int * indexTriangle, double * linepnt, double * linedir)
-
-cdef list _getPerimeterByTriangleIndex(list indTri)
-
-cdef list _getSurfaceByTriangleIndex(list triIndex)
+# cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int * indexTriangle, double * linepnt, double * linedir)
+#
+# cdef list _getPerimeterByTriangleIndex(list indTri)
+#
+# cdef list _getSurfaceByTriangleIndex(list triIndex)
 
 cdef list splitByLine(Surface surf, double * linepnt, double * linedir)
+
 
 cdef (double, double, double, double) boundRectangle(Surface surf, int v1, int v2)
 
@@ -29,11 +30,17 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
 
 cpdef tuple mainAxisInertia(Matrix tensor)
 
+cpdef list trapezeToSurfaceYZ(list trapeces)
 
 cdef class IndexTriangle():
     cdef int * _m
     cdef unsigned int _ntriangle
     cpdef void setList(IndexTriangle self, list data)
+
+cdef class WireIterator():
+    cdef Matrix vectMat
+    cdef IndexPerimeter indPer
+    cdef unsigned int niterator
 
 cdef class Surface():
     cdef Matrix vectMat

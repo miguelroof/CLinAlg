@@ -62,5 +62,6 @@ cdef class Wire():
     cdef AlgMatrix.Matrix vectMat
     cdef IndexPerimeter indPer
     cpdef double length(self)
+    cpdef list getBounds(self)
 
 
