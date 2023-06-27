@@ -2,6 +2,7 @@ import sys
 from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 from libc.math cimport M_PI, sin, fabs
 from .AlgVector cimport Vector
+from .AlgTransformation cimport Transformation
 from . cimport AlgVector, AlgSegment, AlgQuaternion, AlgMatrix, AlgLine
 from .AlgTool cimport presition
 
@@ -733,6 +734,9 @@ cdef class Wire:
     def Segment(self):
         return SegmentIterator(self.vectMat, self.indPer)
 
+    def indexPerimeter(self):
+        return self.indPer.__serialize__()
+
     def perimeter(self):
         return getLength(self.vectMat._m, self.indPer._m, self.indPer._npoint)
 
@@ -841,6 +845,27 @@ cdef class Wire:
 
     def copy(Wire self) -> Wire:
         return Wire(self.vectMat)
+
+    cpdef Wire transform(Wire self, Transformation transf):
+        "function that apply transformation matrix to current points. Returns a new wire transformed."
+        cdef unsigned int v, i, j
+        cdef double val
+        cdef Wire newWire = Wire()
+        newWire.vectMat._m = <double *> PyMem_Malloc (self.vectMat._rows * self.vectMat._cols * sizeof(double))
+        newWire.vectMat._rows = self.vectMat._rows
+        newWire.vectMat._cols = self.vectMat._cols
+        for v in range(self.vectMat._rows):
+            for i in range(3):
+                val = 0
+                for j in range(3):
+                    val += transf._mat._m[j+4*i] * self.vectMat._m[j + v*3]
+                val += transf._mat._m[3+4*i]
+                newWire.vectMat._m[i+v*3] = val
+        newWire.indPer.setList(self.indPer.__serialize__())
+        return newWire
+
+
+
 
     def __copy__(self):
         return self.copy()

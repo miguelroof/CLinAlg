@@ -1,7 +1,7 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport sqrt, M_PI, acos,  sin, cos, fabs
 from .AlgTool cimport presition
-from .AlgMatrix cimport Matrix
+# from .AlgMatrix cimport Matrix
 
 
 cdef void vdir(double * todouble, double * pini, double * pfin):
@@ -86,9 +86,6 @@ cdef void project(double * todouble, double * v1, double * v2):
     todouble[2] = v2[2] * v1v2
 
 cdef class PhantomVector():
-
-
-
     @property
     def module(self) -> float:
         return module(self._v)
@@ -174,8 +171,11 @@ cdef class PhantomVector():
         cdef unsigned int i
         return [self._v[i] for i in range(3)]
 
+    def toTuple(PhantomVector self) -> tuple:
+        return (self._v[0], self._v[1], self._v[2])
+
     def __hash__(PhantomVector self):
-        return hash(tuple(self.toList()))
+        return hash(self.toTuple())
 
     def __repr__(PhantomVector self) -> str:
         return 'Vector(%.2f,%.2f,%.2f)' % (self[0], self[1], self[2])

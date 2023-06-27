@@ -50,12 +50,12 @@ cdef bint getIntersectionPoint(double * toPoint, double * pnt1, double * dir1, d
     cdef double lamb, mnu
     cdef unsigned int i, j, k
     for i in range(3):
-        if dir1[i] != 0:
+        if fabs(dir1[i]) > presition:
             for j in range(3):
                 if j == i:
                     continue
                 mnu = dir2[j] - dir1[j] * dir2[i] / dir1[i]
-                if mnu == 0:
+                if fabs(mnu)  < presition:
                     continue
                 mnu = (pnt1[j] + dir1[j] * pnt2[i] / dir1[i] - dir1[j] * pnt1[i] / dir1[i] - pnt2[j]) / mnu
                 lamb = (pnt2[i] + dir2[i] * mnu - pnt1[i]) / dir1[i]

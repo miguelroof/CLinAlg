@@ -18,6 +18,19 @@ cpdef Transformation fromRotTrans(Quaternion quat, Vector vect):
     del m
     return newTransform
 
+cpdef Transformation fromPointAndAxis(Vector pos, Vector axisX, Vector axisY):
+    cdef Vector axisZ = axisX % axisY
+    cdef unsigned int i
+    cdef Transformation newTransform = Transformation()
+    for i in range(3):
+        newTransform._mat._m[i] = axisX._v[i]
+        newTransform._mat._m[i+4] = axisY._v[i]
+        newTransform._mat._m[i+8] = axisZ._v[i]
+        newTransform._mat._m[3+i*4] = pos._v[i]
+        newTransform._mat._m[12+i] = 0
+    newTransform._mat._m[15] = 1
+    return newTransform
+
 cdef class Transformation():
     def __cinit__(self, matrix4x4=None):
         cdef unsigned int i, j

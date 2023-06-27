@@ -1,7 +1,10 @@
 from .AlgMatrix cimport Matrix
 from .AlgWire cimport IndexPerimeter
+from .AlgTransformation cimport Transformation
 
-cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer)
+cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer, double * axis)
+
+cdef void sortTrianglesByNormal(double * surfPoint, int * indTri, int numTri, double * direction)
 
 cdef double getArea(Surface surf)
 
@@ -37,7 +40,7 @@ cdef class IndexTriangle():
     cdef unsigned int _ntriangle
     cpdef void setList(IndexTriangle self, list data)
 
-cdef class WireIterator():
+cdef class EdgeIterator():
     cdef Matrix vectMat
     cdef IndexPerimeter indPer
     cdef unsigned int niterator
@@ -46,3 +49,4 @@ cdef class Surface():
     cdef Matrix vectMat
     cdef IndexTriangle indTri
     cdef IndexPerimeter indPer
+    cpdef Surface transform(Surface self, Transformation transf)

@@ -1,4 +1,5 @@
 from . cimport AlgMatrix
+from .AlgTransformation cimport Transformation
 
 cdef double getLength(double * wirepoint, int * indexes, unsigned int numvect)
 
@@ -63,5 +64,6 @@ cdef class Wire():
     cdef IndexPerimeter indPer
     cpdef double length(self)
     cpdef list getBounds(self)
+    cpdef Wire transform(Wire self, Transformation transf)
 
 
