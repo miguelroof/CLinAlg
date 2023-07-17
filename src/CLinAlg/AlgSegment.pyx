@@ -7,7 +7,7 @@ cdef bint isInside(double * pini, double * pfin, double * point, bint incEdge):
     cdef unsigned int i, j, k
     cdef double mnu
     for i in range(3):
-        if pini[i] == pfin[i]:
+        if fabs(pini[i] - pfin[i]) < presition:
             continue
         mnu = (point[i] - pini[i]) / (pfin[i] - pini[i])
         if incEdge:
@@ -17,7 +17,7 @@ cdef bint isInside(double * pini, double * pfin, double * point, bint incEdge):
             if mnu < presition or mnu > 1 - presition:
                 return False
         j = (i + 1) % 3
-        k = ((i + j) * 2) % 3
+        k = (i + 2) % 3
         if (fabs(pini[j] + mnu * (pfin[j] - pini[j]) - point[j]) < presition and
                 fabs(pini[k] + mnu * (pfin[k] - pini[k]) - point[k]) < presition):
             return True
