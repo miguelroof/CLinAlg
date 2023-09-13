@@ -1364,7 +1364,7 @@ cdef class Surface():
         cdef list inertia
         cdef Matrix axis
         inertia, axis = mainAxisInertia(self.inertia())
-        area = self.Area
+        area = self.area()
         _radiusYZ = []
         for i in range(3):
             _radiusYZ.append((inertia[i] / area) ** 0.5)

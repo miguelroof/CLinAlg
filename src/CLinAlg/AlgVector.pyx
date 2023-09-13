@@ -14,20 +14,18 @@ cdef void vdir(double * todouble, double * pini, double * pfin):
             todouble[i] = todouble[i] / modulo
 
 cdef void add(double * todouble, double * v1, double * v2):
-    cdef unsigned int i
-    for i in range(3):
-        todouble[i] = v1[i] + v2[i]
+    todouble[0] = v1[0] + v2[0]
+    todouble[1] = v1[1] + v2[1]
+    todouble[2] = v1[2] + v2[2]
+
 
 cdef void sub(double * todouble, double * v1, double * v2):
-    cdef unsigned int i
-    for i in range(3):
-        todouble[i] = v1[i] - v2[i]
+    todouble[0] = v1[0] - v2[0]
+    todouble[1] = v1[1] - v2[1]
+    todouble[2] = v1[2] - v2[2]
 
 cdef double dot(double * v1, double * v2):
-    cdef unsigned int i
-    cdef double val = 0
-    for i in range(3):
-        val += v1[i] * v2[i]
+    cdef double val = v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2]
     return val
 
 cdef double module(double * v):
@@ -196,27 +194,33 @@ cdef class PhantomVector():
         return self.copy()
 
     #....................OPERADORES......................................
-    def __add__(PhantomVector self, PhantomVector other):
+    def __add__(self, PhantomVector other):
         cdef Vector newVector = Vector()
-        add(newVector._v, self._v, other._v)
+        if isinstance(self, PhantomVector):
+            add(newVector._v, (<PhantomVector>self)._v, other._v)
+        else:
+            copy(newVector._v, other._v)
         return newVector
 
     def __iadd__(PhantomVector self, PhantomVector other):  #cuando se produce sumas dentro en un bucle tipo sum
-        self._v[0] = self._v[0] + other._v[0]
-        self._v[1] = self._v[1] + other._v[1]
-        self._v[2] = self._v[2] + other._v[2]
+        add(self._v, self._v, other._v)
 
-    def __sub__(PhantomVector self, PhantomVector other):
+    def __radd__(self, PhantomVector other):  #cuando se produce sumas dentro en un bucle tipo sum
+        add(self._v, self._v, other._v)
+
+    def __sub__(self, PhantomVector other):
         cdef Vector  newVector = Vector()
-        newVector._v[0] = self._v[0] - other._v[0]
-        newVector._v[1] = self._v[1] - other._v[1]
-        newVector._v[2] = self._v[2] - other._v[2]
+        if isinstance(self, PhantomVector):
+            sub(newVector._v, (<PhantomVector>self)._v, other._v)
+        else:
+            copy(newVector._v, other._v)
         return newVector
 
     def __isub__(PhantomVector self, PhantomVector other):
-        self._v[0] = self._v[0] - other._v[0]
-        self._v[1] = self._v[1] + - other._v[1]
-        self._v[2] = self._v[2] - other._v[2]
+        sub(self._v, self._v, other._v)
+
+    def __rsub__(PhantomVector self, PhantomVector other):
+        sub(self._v, self._v, other._v)
 
     def __eq__(PhantomVector self, PhantomVector other) -> bool:
         return bool(isEqual(self._v, other._v))
