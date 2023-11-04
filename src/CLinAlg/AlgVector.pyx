@@ -235,29 +235,33 @@ cdef class PhantomVector():
         newVector._v[2] = -self._v[2]
         return newVector
 
-    def __mul__(first, other):
+    def __mul__(PhantomVector self, other):
         "dot product"
         cdef Vector newVector
-        if isinstance(first, PhantomVector):
-            if isinstance(other, PhantomVector):
-                return dot((<PhantomVector>first)._v, (<PhantomVector> other)._v)
-            elif isinstance(other, (int,float)):
-                newVector = Vector()
-                newVector._v[0] = (<PhantomVector>first)._v[0] * other
-                newVector._v[1] = (<PhantomVector>first)._v[1] * other
-                newVector._v[2] = (<PhantomVector>first)._v[2] * other
-                return newVector
-            else:
-                raise RuntimeError("Not allowed this argument for vector multiplication")
-        elif isinstance(first, (int,float)):
+        if isinstance(other, PhantomVector):
+            return dot(self._v, (<PhantomVector> other)._v)
+        elif isinstance(other, (int,float)):
             newVector = Vector()
-            newVector._v[0] = (<PhantomVector> other)._v[0] * first
-            newVector._v[1] = (<PhantomVector> other)._v[1] * first
-            newVector._v[2] = (<PhantomVector> other)._v[2] * first
+            newVector._v[0] = self._v[0] * other
+            newVector._v[1] = self._v[1] * other
+            newVector._v[2] = self._v[2] * other
             return newVector
         else:
             raise RuntimeError("Not allowed this argument for vector multiplication")
 
+    def __rmul__(PhantomVector self, other):
+        "dot product"
+        cdef Vector newVector
+        if isinstance(other, PhantomVector):
+            return dot(self._v, (<PhantomVector> other)._v)
+        elif isinstance(other, (int, float)):
+            newVector = Vector()
+            newVector._v[0] = self._v[0] * other
+            newVector._v[1] = self._v[1] * other
+            newVector._v[2] = self._v[2] * other
+            return newVector
+        else:
+            raise RuntimeError("Not allowed this argument for vector multiplication")
 
     def __bool__(PhantomVector self)-> bool:
         return True if (self._v[0] or self._v[1] or self._v[2]) else False

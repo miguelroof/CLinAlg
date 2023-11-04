@@ -565,35 +565,54 @@ cdef class Matrix():
             newMat._m[i] = self._m[i]*-1
         return newMat
 
-    def __mul__(first, other):
+    def __mul__(Matrix self, other):
         cdef unsigned int row, col, j
         cdef double value
         cdef Matrix newMat
         newMat = Matrix()
-        if isinstance(other, Matrix) and isinstance(first, Matrix):
-            if first.cols != other.rows:
+        if isinstance(other, Matrix):
+            if self.cols != other.rows:
                 raise ArithmeticError("The matrix dimmensions should be compatible")
-            newMat._m = <double *> PyMem_Malloc(other.cols * first.rows * sizeof(double))
+            newMat._m = <double *> PyMem_Malloc(other.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
-            newMat._rows = (<Matrix>first)._rows
-            newMat._cols = (<Matrix>other)._cols
-            mult(newMat._m, (<Matrix>first)._m, first.rows, first.cols,
-                                (<Matrix>other)._m, other.rows, other.cols)
-        elif isinstance(other, (int, float)) and isinstance(first, Matrix):
-            newMat._m = <double *> PyMem_Malloc(first.cols * first.rows * sizeof(double))
+            newMat._rows = self._rows
+            newMat._cols = (<Matrix> other)._cols
+            mult(newMat._m, self._m, self.rows, self.cols,
+                 (<Matrix> other)._m, other.rows, other.cols)
+        elif isinstance(other, (int, float)):
+            newMat._m = <double *> PyMem_Malloc(self.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
-            newMat._rows = (<Matrix>first)._rows
-            newMat._cols = (<Matrix>first)._cols
-            multByScalar(newMat._m, (<Matrix>first)._m, first.rows, first.cols, other)
-        elif isinstance(other,Matrix) and isinstance(first, (int, float)):
-            newMat._m = <double *> PyMem_Malloc(other.cols * other.rows * sizeof(double))
+            newMat._rows = self._rows
+            newMat._cols = self._cols
+            multByScalar(newMat._m, self._m, self.rows, self.cols, other)
+        else:
+            raise ValueError("Not implemented add")
+        return newMat
+
+    def __rmul__(Matrix self, other):
+        cdef unsigned int row, col, j
+        cdef double value
+        cdef Matrix newMat
+        newMat = Matrix()
+        if isinstance(other, Matrix):
+            if self.cols != other.rows:
+                raise ArithmeticError("The matrix dimmensions should be compatible")
+            newMat._m = <double *> PyMem_Malloc(other.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
-            newMat._rows = (<Matrix>other)._rows
-            newMat._cols = (<Matrix>other)._cols
-            multByScalar(newMat._m, (<Matrix>other)._m, other.rows, other.cols, (<double>first))
+            newMat._rows = self._rows
+            newMat._cols = (<Matrix> other)._cols
+            mult(newMat._m, self._m, self.rows, self.cols,
+                 (<Matrix> other)._m, other.rows, other.cols)
+        elif isinstance(other, (int, float)):
+            newMat._m = <double *> PyMem_Malloc(self.cols * self.rows * sizeof(double))
+            if not newMat._m:
+                raise MemoryError()
+            newMat._rows = self._rows
+            newMat._cols = self._cols
+            multByScalar(newMat._m, self._m, self.rows, self.cols, other)
         else:
             raise ValueError("Not implemented add")
         # newMat.pushdata(self._rows, self._cols, mm)
@@ -712,7 +731,7 @@ cdef class Matrix():
         adjugate(newMat._m, self._m, self._rows, self._cols)
         return newMat
 
-    def determinant(Matrix self) -> double:
+    def determinant(Matrix self) -> float:
         return determinant(self._m, self._rows)
 
     def inverse(Matrix self):
