@@ -59,21 +59,56 @@ cdef bint should_swap(double * vCom, double * vA, double * vB, double * vP):
 
 cdef void split_triangle_into_3(double * plist2d, int num_point, int * tri_vertex, int * tri_adjoin, list vertex_in_tri,
                                 int triIndex, int pointIndex, int lastTriIndex):
+    """
+    Function that divide the triangle given in 3 with the inner point given by index
+    :param plist2d: array with num_point*2 * double 
+    :param num_point: number of elements
+    :param tri_vertex: array with 3 * num_tri * int indexes of the vertex of triangle
+    :param tri_adjoin: array with 3 * num_tri * int indexes of adjoin to each triangle
+    :param vertex_in_tri: list of int with the vertexes within the initial triangle
+    :param triIndex: Index of triangle that should be divied
+    :param pointIndex: Index of point that will divide the triangle
+    :param lastTriIndex: Last triangle added to tri_vertex array (after this index, the array is not initializated
+    """
     cdef int i
+    cdef int v0, v1,v2 # gets the ver
+    v0 = tri_vertex[triIndex*3]
+    v1 = tri_vertex[triIndex*3+1]
+    v2 = tri_vertex[triIndex*3+2]
 
-cdef int * delauney_2d_constricted(double * plist2d_ext, int num_point, int * contour, int num_contour):
-    # contour is an array of points with -1 to separate differents contours (holes)
-    # the plist2d array should be normalize in 2D
-    # plist2d_ext has the 2d points normalize plus 3 points to sorround by corners
 
+
+
+
+cdef (int * , int *) delauney_2d_constricted(double * plist2d, int num_point, int * contour, int num_contour):
+    """
+    Function that construct a 2d delauney triangulation with constrictions
+    :param plist2d: points 2d 
+    :param num_point: num points in array
+    :param contour: index of points that create a contours. The index -1 divide the contour. The contour should be closed (last index == first)
+    :param num_contour: num of points in the contour array
+    """
     cdef int i, j, k
+    cdef double * plist2d_ext = <double *> PyMem_Malloc((num_point+3) * 2 * sizeof(double))
     cdef int * avoid_swap = <int *> PyMem_Malloc((num_point + 3) * (num_point + 3) * sizeof(int))
     cdef int * used_vertex = <int *> PyMem_Malloc(num_point * sizeof(int))
     cdef int num_tri = 2 * (num_point + 3) - 2 - 3  # esquema de triangulo envolvente
     cdef int * tri_vertex = <int *> PyMem_Malloc (num_tri*3*sizeof(int))
     cdef int * tri_adjoin = <int *> PyMem_Malloc (num_tri*3*sizeof(int))
 
+    if not num_contour:
+        raise RuntimeError("This functions needs contour points")
     try:
+        for i in range(num_point):
+            for j in range(2):
+                plist2d_ext[2*i+j] = plist2d[2*i+j]
+        plist2d_ext[2*num_point] = -100.0
+        plist2d_ext[2*num_point+1] = -100.0
+        plist2d_ext[2*num_point+2] = 100.0
+        plist2d_ext[2*num_point+3] = -100.0
+        plist2d_ext[num_point * 2 + 4] = 0.0
+        plist2d_ext[num_point * 2 + 5] = 100.0
+
         for j in range(num_point):
             used_vertex[j] = 0
             for k in range(num_point):
@@ -82,19 +117,12 @@ cdef int * delauney_2d_constricted(double * plist2d_ext, int num_point, int * co
             for k in range(num_point, num_point + 3):
                 avoid_swap[j * (num_point + 3) + k] = 1
 
-        if num_contour:  # si hay elementos en el contorno
-            for i in range(num_contour - 1):
-                if contour[i] == -1 or contour[i + 1] == -1:
-                    continue
-                avoid_swap[contour[i] * (num_point + 3) + contour[i + 1]] = 1
-                avoid_swap[contour[i + 1] * (num_point + 3) + contour[i]] = 1
+        for i in range(num_contour - 1):
+            if contour[i] == -1 or contour[i + 1] == -1:
+                continue
+            avoid_swap[contour[i] * (num_point + 3) + contour[i + 1]] = 1
+            avoid_swap[contour[i + 1] * (num_point + 3) + contour[i]] = 1
 
-        plist2d_ext[num_point * 2] = -100.0
-        plist2d_ext[num_point * 2 + 1] = -100.0
-        plist2d_ext[num_point * 2 + 2] = 100.0
-        plist2d_ext[num_point * 2 + 3] = -100.0
-        plist2d_ext[num_point * 2 + 4] = 0.0
-        plist2d_ext[num_point * 2 + 5] = 100.0
         # genero el array del tri_vertex
         tri_vertex[0] = num_point
         tri_vertex[1] = num_point + 1
@@ -109,16 +137,11 @@ cdef int * delauney_2d_constricted(double * plist2d_ext, int num_point, int * co
                 i += 1
                 continue
             if not used_vertex[contour[i]]:
-                pass
-
-
-
-        
-
-
+                new_tri_index =
 
 
     finally:
         PyMem_Free(avoid_swap)
         PyMem_Free(used_vertex)
         PyMem_Free(tri_adjoin)
+        PyMem_Free(plist2d_ext)

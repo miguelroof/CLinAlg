@@ -19,3 +19,11 @@ cdef void copy(double * tto, double * ffrom)
 cdef double cross(double * v1, double * v2)
 
 cdef tuple toTuple(double * v)
+
+cdef void project(double * todouble, double * v1, double * v2)
+
+cdef class PhantomVector2D():
+    cdef double * _v
+
+cdef class Vector2D(PhantomVector2D):
+    pass

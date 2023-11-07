@@ -1,8 +1,6 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from libc.math cimport sqrt, M_PI, acos,  sin, cos, fabs
+from libc.math cimport sqrt, M_PI, acos, sin, cos, fabs
 from .AlgTool cimport presition
-# from .AlgMatrix cimport Matrix
-
 
 cdef void vdir(double * todouble, double * pini, double * pfin):
     cdef double modulo
@@ -18,14 +16,13 @@ cdef void add(double * todouble, double * v1, double * v2):
     todouble[1] = v1[1] + v2[1]
     todouble[2] = v1[2] + v2[2]
 
-
 cdef void sub(double * todouble, double * v1, double * v2):
     todouble[0] = v1[0] - v2[0]
     todouble[1] = v1[1] - v2[1]
     todouble[2] = v1[2] - v2[2]
 
 cdef double dot(double * v1, double * v2):
-    cdef double val = v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2]
+    cdef double val = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
     return val
 
 cdef double module(double * v):
@@ -67,14 +64,13 @@ cdef void cross(double * todouble, double * v1, double * v2):
     todouble[1] = v1[2] * v2[0] - v1[0] * v2[2]
     todouble[2] = v1[0] * v2[1] - v1[1] * v2[0]
 
-
 cdef tuple toTuple(double * v):
     return (v[0], v[1], v[2])
 
 cdef void project(double * todouble, double * v1, double * v2):
     cdef double v1v2, v2v2
     v2v2 = dot(v2, v2)
-    if v2v2 == 0:
+    if fabs(v2v2) < presition:
         todouble[0] = 0
         todouble[1] = 0
         todouble[2] = 0
@@ -143,7 +139,7 @@ cdef class PhantomVector():
         cdef Vector u = Vector()
         cdef double sinangle, cosangle, uv, uu
         cdef double axismodule
-        uvectv = <double *> PyMem_Malloc (3 * sizeof(double))
+        uvectv = <double *> PyMem_Malloc(3 * sizeof(double))
         try:
             axismodule = module(axis._v)
             sinangle = sin(angle * 0.5)
@@ -197,7 +193,7 @@ cdef class PhantomVector():
     def __add__(self, PhantomVector other):
         cdef Vector newVector = Vector()
         if isinstance(self, PhantomVector):
-            add(newVector._v, (<PhantomVector>self)._v, other._v)
+            add(newVector._v, (<PhantomVector> self)._v, other._v)
         else:
             copy(newVector._v, other._v)
         return newVector
@@ -211,7 +207,7 @@ cdef class PhantomVector():
     def __sub__(self, PhantomVector other):
         cdef Vector  newVector = Vector()
         if isinstance(self, PhantomVector):
-            sub(newVector._v, (<PhantomVector>self)._v, other._v)
+            sub(newVector._v, (<PhantomVector> self)._v, other._v)
         else:
             copy(newVector._v, other._v)
         return newVector
@@ -240,7 +236,7 @@ cdef class PhantomVector():
         cdef Vector newVector
         if isinstance(other, PhantomVector):
             return dot(self._v, (<PhantomVector> other)._v)
-        elif isinstance(other, (int,float)):
+        elif isinstance(other, (int, float)):
             newVector = Vector()
             newVector._v[0] = self._v[0] * other
             newVector._v[1] = self._v[1] * other
@@ -264,7 +260,11 @@ cdef class PhantomVector():
             raise RuntimeError("Not allowed this argument for vector multiplication")
 
     def __bool__(PhantomVector self)-> bool:
-        return True if (self._v[0] or self._v[1] or self._v[2]) else False
+        cdef unsigned int i
+        for i in range(3):
+            if fabs(self._v[i]) > presition:
+                return True
+        return False
 
     def __truediv__(PhantomVector self, other):
         cdef Vector newVector = Vector()
@@ -282,11 +282,7 @@ cdef class PhantomVector():
         cross(newVector._v, self._v, other._v)
         return newVector
 
-
-
-
 cdef class Vector(PhantomVector):
-
     def __cinit__(self, *coord, **kwargs):
         if coord == (None):
             pass
@@ -296,9 +292,9 @@ cdef class Vector(PhantomVector):
     def __init__(self, *coord, **kwargs):
         if len(coord) == 1:
             if isinstance(coord[0], PhantomVector):
-                self._v[0] = (<PhantomVector>coord[0])._v[0]
-                self._v[1] = (<PhantomVector>coord[0])._v[1]
-                self._v[2] = (<PhantomVector>coord[0])._v[2]
+                self._v[0] = (<PhantomVector> coord[0])._v[0]
+                self._v[1] = (<PhantomVector> coord[0])._v[1]
+                self._v[2] = (<PhantomVector> coord[0])._v[2]
                 return
             elif isinstance(coord[0], (list, tuple)) and len(coord[0]) == 3:
                 self._v[0] = coord[0][0]
@@ -318,7 +314,6 @@ cdef class Vector(PhantomVector):
 
     def __dealloc__(self):
         PyMem_Free(self._v)
-
 
     def __json__(self):
         return {'__jsoncls__': 'CLinAlg.AlgVector:Vector.from_JSON', 'vector': (self._v[0], self._v[1], self._v[2])}
