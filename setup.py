@@ -38,9 +38,7 @@ extensions = [
     Extension("CLinAlg.AlgPlane", ["src/CLinAlg/AlgPlane.pyx"]),
     Extension("CLinAlg.AlgWire", ["src/CLinAlg/AlgWire.pyx"]),
     Extension("CLinAlg.AlgSurface", ["src/CLinAlg/AlgSurface.pyx"]),
-    Extension("CLinAlg.AlgVector2D", ["src/CLinAlg/AlgVector2D.pyx"]),
-    Extension("CLinAlg.delauney", ["src/CLinAlg/delauney.pyx"])
-]
+    Extension("CLinAlg.AlgVector2D", ["src/CLinAlg/AlgVector2D.pyx"])]
 
 CYTHONIZE = bool(int(os.getenv("CYTHONIZE", 1))) and cythonize is not None
 

@@ -72,10 +72,28 @@ cdef void split_triangle_into_3(double * plist2d, int num_point, int * tri_verte
     """
     cdef int i
     cdef int v0, v1,v2 # gets the ver
-    v0 = tri_vertex[triIndex*3]
-    v1 = tri_vertex[triIndex*3+1]
-    v2 = tri_vertex[triIndex*3+2]
+    cdef double * vP
+    cdef double * v1 = <double *> PyMem_Malloc(2*sizeof(double))
+    cdef double * v2 = <double *> PyMem_Malloc(2*sizeof(double))
 
+    try:
+        v0 = tri_vertex[triIndex*3]
+        v1 = tri_vertex[triIndex*3+1]
+        v2 = tri_vertex[triIndex*3+2]
+        new_tri = [[tri_vertex[triIndex*3], tri_vertex[triIndex*3+1], pointIndex],
+                   [tri_vertex[triIndex*3+1], tri_vertex[triIndex*3+2], pointIndex],
+                   [tri_vertex[triIndex*3+2], tri_vertex[triIndex*3], pointIndex]]
+        new_tri_index = [triIndex, lastTriIndex+1, lastTriIndex+2] # he agregado nuevos puntos
+        vertex_in_new_tri = [[],[],[]]
+        ptocheck = [i for i,x in enumerate(vertex_in_tri) if x == triIndex and i != pointIndex]
+        vP = &plist2d[pointIndex*2]
+        for k in range(2):
+            if not ptocheck:
+                break
+
+    finally:
+        PyMem_Free(v1)
+        PyMem_Free(v2)
 
 
 
@@ -130,14 +148,17 @@ cdef (int * , int *) delauney_2d_constricted(double * plist2d, int num_point, in
         tri_adjoin[0] = -1
         tri_adjoin[1] = -1
         tri_adjoin[2] = -1
-
+        vertex_in_tri = [0 for _ in range(num_point)] # lista con todos los puntos en el triangulo que los contine
+        last_tri_index = 0
         i = 0
         while i < num_contour:
             if contour[i] == -1:
                 i += 1
                 continue
             if not used_vertex[contour[i]]:
-                new_tri_index =
+                new_tri_index = split_triangle_into_3(plist2d, num_point, tri_vertex, tri_adjoin, vertex_in_tri, vertex_in_tri[contour[i]],
+                                                      contour[i], last_tri_index)
+
 
 
     finally:

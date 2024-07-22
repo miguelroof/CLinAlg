@@ -246,6 +246,7 @@ cdef double staticMoment(Surface surf, double * point, double * dir):
         PyMem_Free(vCross)
         PyMem_Free(cdg)
 
+
 cdef bint isInside(Surface surf, double * point, bint incEdge):
     """
     Check if one point is inside the surface
@@ -254,37 +255,94 @@ cdef bint isInside(Surface surf, double * point, bint incEdge):
     :param incEdge: Include edge in check condition
     :return: True if the point is within the surface, otherwise false
     """
-    cdef double * mm = <double *> PyMem_Malloc(9 * sizeof(double))
-    cdef double * ang = <double *> PyMem_Malloc(3 * sizeof(double))
-    cdef double lmod
-    cdef int i, j
+    cdef double * vAB = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef double * vAC = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef double * vCross = <double *> PyMem_Malloc(3 * sizeof(double))
+    cdef AlgWire.Wire w
+    cdef double area, alfa, beta, gamma, x
+    cdef int i,j
+    cdef bint isin
     try:
-        indices = [[0, 1], [0, 2], [1, 2]]
-        for i in range(0, len(surf.indTri), 3):
-            for j in range(3):
-                AlgVector.sub(&mm[j * 3], &surf.vectMat._m[surf.indTri._m[i + j] * 3], point)
-                lmod = AlgVector.module(&mm[j * 3])
-                if lmod < presition:  # puntos coincidentes.
-                    return incEdge
-            for j in range(3):
-                ang[j] = AlgVector.angle(&mm[indices[j][0] * 3], &mm[indices[j][1] * 3])
-            if fabs(ang[0] + ang[1] + ang[2] - 2 * M_PI) < presition:
-                # puede que este en una linelinea o no
-                if incEdge:
+        for i in range(0, surf.indTri._ntriangle*3, 3):
+            AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
+            AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
+            AlgVector.cross(vCross, vAB, vAC)
+            area = AlgVector.module(vCross) # El area es la mitad, pero siempre usare el doble
+            if area < presition*presition:
+                AlgVector.sub(vAB, point, &surf.vectMat._m[surf.indTri._m[i] * 3])
+                if AlgVector.module(vAB) < presition and incEdge:
                     return True
-                else:
-                    # puede que la linea no sea de indices consecutivos
-                    for j in range(3):
-                        if fabs(ang[j] - M_PI) < presition:
-                            # Se encuentra sobre la linea
-                            if abs(surf.indTri._m[i + indices[j][0]] - surf.indTri._m[
-                                i + indices[j][1]]) == 1:  # son dos puntos consecutivos del contorno
-                                return False
-                    return True
-        return False  # llegado a este punto, si ningun trianglo lo contempla, que salga
+            AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i] * 3], point)
+            AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point)
+            AlgVector.cross(vCross, vAB, vAC)
+            alfa = AlgVector.module(vCross)/area #a-b
+            AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point)
+            AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], point)
+            AlgVector.cross(vCross, vAB, vAC)
+            beta = AlgVector.module(vCross) / area  #a-b
+            AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], point)
+            AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i] * 3], point)
+            AlgVector.cross(vCross, vAB, vAC)
+            gamma = AlgVector.module(vCross) / area  #a-b
+            if fabs(alfa+beta+gamma-1) > presition:
+                continue
+            for x in (alfa, beta, gamma):
+                if x < -presition or x > 1+presition:
+                    continue
+            if not incEdge and any([fabs(x) < presition*presition*0.5 for x  in (alfa, beta, gamma)]):
+                for w in surf.Edge:
+                    isin = AlgWire.isInside(w.vectMat._m, w.indPer._m, w.indPer._npoint, point, True)
+                    if isin:
+                        break
+                if isin:
+                    return False
+            return True
+        return False
     finally:
-        PyMem_Free(mm)
-        PyMem_Free(ang)
+        PyMem_Free(vAB)
+        PyMem_Free(vAC)
+        PyMem_Free(vCross)
+
+# cdef bint isInside2(Surface surf, double * point, bint incEdge):
+#     """
+#     Check if one point is inside the surface
+#     :param surf: Surface object
+#     :param point: pointer to the point to be checked
+#     :param incEdge: Include edge in check condition
+#     :return: True if the point is within the surface, otherwise false
+#     """
+#     cdef double * mm = <double *> PyMem_Malloc(9 * sizeof(double))
+#     cdef double * ang = <double *> PyMem_Malloc(3 * sizeof(double))
+#     cdef double lmod
+#     cdef int i, j
+#     try:
+#         indices = [[0, 1], [0, 2], [1, 2]]
+#         for i in range(0, len(surf.indTri), 3):
+#             for j in range(3):
+#                 AlgVector.sub(&mm[j * 3], &surf.vectMat._m[surf.indTri._m[i + j] * 3], point)
+#                 lmod = AlgVector.module(&mm[j * 3])
+#                 if lmod < presition:  # puntos coincidentes.
+#                     return incEdge
+#             for j in range(3):
+#                 ang[j] = AlgVector.angle(&mm[indices[j][0] * 3], &mm[indices[j][1] * 3])
+#                 print(ang[j])
+#             if fabs(ang[0] + ang[1] + ang[2] - 2 * M_PI) < presition:
+#                 # puede que este en una linelinea o no
+#                 if incEdge:
+#                     return True
+#                 else:
+#                     # puede que la linea no sea de indices consecutivos
+#                     for j in range(3):
+#                         if fabs(ang[j] - M_PI) < presition:
+#                             # Se encuentra sobre la linea
+#                             if abs(surf.indTri._m[i + indices[j][0]] - surf.indTri._m[
+#                                 i + indices[j][1]]) == 1:  # son dos puntos consecutivos del contorno
+#                                 return False
+#                     return True
+#         return False  # llegado a este punto, si ningun trianglo lo contempla, que salga
+#     finally:
+#         PyMem_Free(mm)
+#         PyMem_Free(ang)
 
 cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint incEdge):
     """
