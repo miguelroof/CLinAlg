@@ -603,6 +603,7 @@ cdef class PointIterator():
         if self.niterator < self.indPer._npoint:
             v = AlgVector.PhantomVector()
             v._v = &self.vectMat._m[self.indPer[self.niterator] * 3]
+            v._ref_object = self # evitar que lo borren
             self.niterator += 1
             return v
         else:
@@ -620,12 +621,14 @@ cdef class PointIterator():
             for i in range(start, stop, step):
                 phv = AlgVector.PhantomVector()
                 phv._v = &self.vectMat._m[self.indPer[i % self.indPer._npoint]*3]
+                phv._ref_object = self # evitar que lo borren
                 phlist.append(phv)
             return phlist
         elif isinstance(index, int):
             i = self.indPer[index % self.indPer._npoint] * 3
             phv = AlgVector.PhantomVector()
             phv._v = &self.vectMat._m[i]
+            phv._ref_object = self # evitar que lo borren
             return phv
 
     def __len__(self):

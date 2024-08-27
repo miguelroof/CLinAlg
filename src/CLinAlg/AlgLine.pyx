@@ -102,18 +102,40 @@ cdef (bint, double) getParameter(double * pnt, double * dir, double * point):
 
 cdef class PhantomLine():
     # .............................PYTHON METHODS.............................................................
-
     @property
     def point(self):
-        cdef PhantomVector pnt = PhantomVector()
+        cdef AlgVector.PhantomVector pnt = PhantomVector()
+        pnt._ref_object = self
         pnt._v = self._pnt
         return pnt
 
+    @point.setter
+    def point(self, point: AlgVector.Vector):
+        cdef unsigned int i
+        for i in range(3):
+            self._pnt[i] = point._v[i]
+
     @property
     def direction(self):
-        cdef PhantomVector dir = PhantomVector()
-        dir._v = self._dir
-        return dir
+        # if False:
+        #     cdef AlgVector.Vector vector_dir
+        #     vector_dir = AlgVector.Vector()
+        #     AlgVector.copy(vector_dir._v, self._dir)
+        #     return vector_dir
+        # else:
+        cdef AlgVector.PhantomVector vv = AlgVector.PhantomVector()
+        vv._ref_object = self
+        vv._v = self._dir
+        return vv
+
+    @direction.setter
+    def direction(self, direction: Vector):
+        cdef double modulo = AlgVector.module(direction._v)
+        cdef unsigned int i
+        if modulo:
+            for i in range(3):
+                self._dir[i] = direction._v[i]/modulo
+
 
     def projectedPoint(self, point: PhantomVector):
         cdef Vector vaux = Vector()
@@ -172,7 +194,8 @@ cdef class PhantomLine():
 
 cdef class Line(PhantomLine):
     def __cinit__(self, *args, **kwargs):
-        if args != (None):
+        cdef unsigned int i
+        if len(args) != 1 or len(args) == 1 and args[0] != None:
             self._pnt = <double *> PyMem_Malloc(3 * sizeof(double))
             self._dir = <double *> PyMem_Malloc(3 * sizeof(double))
 
@@ -193,6 +216,7 @@ cdef class Line(PhantomLine):
             AlgVector.vdir(self._dir, (<PhantomVector> args[0])._v, (<PhantomVector> args[1])._v)
 
     def __dealloc__(Line self):
+        print("borrado de la linea")
         PyMem_Free(self._pnt)
         PyMem_Free(self._dir)
 

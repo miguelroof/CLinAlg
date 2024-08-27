@@ -81,6 +81,7 @@ cdef class PhantomSegment():
     def pini(self):
         cdef AlgVector.PhantomVector v = AlgVector.PhantomVector()
         v._v = self._vini
+        v._ref_object = self
         return v
 
     @pini.setter
@@ -93,6 +94,7 @@ cdef class PhantomSegment():
     def pfin(self):
         cdef AlgVector.PhantomVector v = AlgVector.PhantomVector()
         v._v = self._vfin
+        v._ref_object = self
         return v
 
     @pfin.setter
@@ -101,12 +103,10 @@ cdef class PhantomSegment():
         for i in range(3):
             self._vfin[i] = p_fin._v[i]
 
-    @property
     def line(self):
-        cdef AlgLine.Line newLine
-        newLine = AlgLine.Line()
-        AlgVector.copy(newLine._pnt, self._vini)
-        AlgVector.vdir(newLine._dir, self._vini, self._vfin)
+        cdef AlgLine.Line newLine = AlgLine.Line(self.pini, self.pfin)
+        #AlgVector.copy(newLine._pnt, self._vini)
+        #AlgVector.vdir(newLine._dir, self._vini, self._vfin)
         return newLine
 
     def isInside(self, point: AlgVector.Vector, incEdge=True):

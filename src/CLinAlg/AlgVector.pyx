@@ -80,6 +80,7 @@ cdef void project(double * todouble, double * v1, double * v2):
     todouble[2] = v2[2] * v1v2
 
 cdef class PhantomVector():
+
     @property
     def module(self) -> float:
         return module(self._v)
@@ -172,15 +173,15 @@ cdef class PhantomVector():
         return hash(self.toTuple())
 
     def __repr__(PhantomVector self) -> str:
-        return 'Vector(%.2f,%.2f,%.2f)' % (self[0], self[1], self[2])
+        return 'Vector(%.2f,%.2f,%.2f)' % (self._v[0], self._v[1], self._v[2])
 
     def __str__(Vector self) -> str:
-        return 'Vector(%.2f,%.2f,%.2f)' % (self[0], self[1], self[2])
+        return 'Vector(%.2f,%.2f,%.2f)' % (self._v[0], self._v[1], self._v[2])
 
-    def __getitem__(PhantomVector self, key) -> float:
+    def __getitem__(PhantomVector self, unsigned int key) -> float:
         return self._v[key]
 
-    def __setitem__(PhantomVector self, key, value):
+    def __setitem__(PhantomVector self, unsigned int key, float value):
         self._v[key] = value
 
     def __copy__(PhantomVector self):

@@ -152,6 +152,7 @@ cdef class Plane:
     def u(self):
         cdef AlgVector.PhantomVector pv = AlgVector.PhantomVector()
         pv._v = self._u
+        pv._ref_object = self # evitar que lo borren
         return pv
 
     @u.setter
@@ -166,6 +167,7 @@ cdef class Plane:
     def v(self):
         cdef AlgVector.PhantomVector pv = AlgVector.PhantomVector()
         pv._v = self._v
+        pv._ref_object = self  # evitar que lo borren
         return pv
 
     @v.setter
@@ -180,6 +182,7 @@ cdef class Plane:
     def axis(self):
         cdef AlgVector.PhantomVector pv = AlgVector.PhantomVector()
         pv._v = self._axis
+        pv._ref_object = self  # evitar que lo borren
         return pv
 
     @axis.setter
@@ -194,6 +197,7 @@ cdef class Plane:
     def position(self):
         cdef AlgVector.PhantomVector pv = AlgVector.PhantomVector()
         pv._v = self._pos
+        pv._ref_object = self # evitar que lo borren
         return pv
 
     @position.setter

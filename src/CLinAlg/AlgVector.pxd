@@ -25,6 +25,7 @@ cdef void project(double * todouble, double * v1, double * v2)
 
 cdef class PhantomVector():
     cdef double * _v
+    cdef object _ref_object
 
 cdef class Vector(PhantomVector):
     pass
