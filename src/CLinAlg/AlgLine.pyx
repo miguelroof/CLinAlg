@@ -216,7 +216,6 @@ cdef class Line(PhantomLine):
             AlgVector.vdir(self._dir, (<PhantomVector> args[0])._v, (<PhantomVector> args[1])._v)
 
     def __dealloc__(Line self):
-        print("borrado de la linea")
         PyMem_Free(self._pnt)
         PyMem_Free(self._dir)
 
