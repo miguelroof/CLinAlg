@@ -1,4 +1,6 @@
 import sys
+from operator import index
+
 from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 from libc.math cimport M_PI, fabs
 from .AlgTool cimport presition
@@ -246,7 +248,6 @@ cdef double staticMoment(Surface surf, double * point, double * dir):
         PyMem_Free(vCross)
         PyMem_Free(cdg)
 
-
 cdef bint isInside(Surface surf, double * point, bint incEdge):
     """
     Check if one point is inside the surface
@@ -260,22 +261,22 @@ cdef bint isInside(Surface surf, double * point, bint incEdge):
     cdef double * vCross = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef AlgWire.Wire w
     cdef double area, alfa, beta, gamma, x
-    cdef int i,j
+    cdef int i, j
     cdef bint isin
     try:
-        for i in range(0, surf.indTri._ntriangle*3, 3):
+        for i in range(0, surf.indTri._ntriangle * 3, 3):
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
             AlgVector.cross(vCross, vAB, vAC)
-            area = AlgVector.module(vCross) # El area es la mitad, pero siempre usare el doble
-            if area < presition*presition:
+            area = AlgVector.module(vCross)  # El area es la mitad, pero siempre usare el doble
+            if area < presition * presition:
                 AlgVector.sub(vAB, point, &surf.vectMat._m[surf.indTri._m[i] * 3])
                 if AlgVector.module(vAB) < presition and incEdge:
                     return True
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i] * 3], point)
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point)
             AlgVector.cross(vCross, vAB, vAC)
-            alfa = AlgVector.module(vCross)/area #a-b
+            alfa = AlgVector.module(vCross) / area  #a-b
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point)
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], point)
             AlgVector.cross(vCross, vAB, vAC)
@@ -284,12 +285,12 @@ cdef bint isInside(Surface surf, double * point, bint incEdge):
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i] * 3], point)
             AlgVector.cross(vCross, vAB, vAC)
             gamma = AlgVector.module(vCross) / area  #a-b
-            if fabs(alfa+beta+gamma-1) > presition:
+            if fabs(alfa + beta + gamma - 1) > presition:
                 continue
             for x in (alfa, beta, gamma):
-                if x < -presition or x > 1+presition:
+                if x < -presition or x > 1 + presition:
                     continue
-            if not incEdge and any([fabs(x) < presition*presition*0.5 for x  in (alfa, beta, gamma)]):
+            if not incEdge and any([fabs(x) < presition * presition * 0.5 for x in (alfa, beta, gamma)]):
                 for w in surf.Edge:
                     isin = AlgWire.isInside(w.vectMat._m, w.indPer._m, w.indPer._npoint, point, True)
                     if isin:
@@ -428,9 +429,15 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
                               double * linedir):
     cdef int i, j
     #1 = 0-1, 2 = 0-2, 4 = 1-2. Devuelvo un valor sumando de los cortes, que sera 3, 5 o 6. En caso contrario, no se han producido dos cortes.
+    # -5 implica que
     cdef int cut1 = 0
     cdef int cut2 = 0
     cdef AlgSegment.PhantomSegment seg
+    for i in range(2):
+        if AlgLine.isInside(linepnt, linedir, &wirePoint[indexTriangle[i] * 3]):
+            for j in range(i+1,3):
+                if AlgLine.isInside(linepnt, linedir, &wirePoint[indexTriangle[j] * 3]):
+                    return 0
 
     if AlgSegment.getIntersectionPointWithLine(v1, &wirePoint[indexTriangle[0] * 3], &wirePoint[indexTriangle[1] * 3],
                                                linepnt, linedir, <bint> True):  # corte a-b
@@ -438,23 +445,37 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
     if AlgSegment.getIntersectionPointWithLine(v2, &wirePoint[indexTriangle[0] * 3], &wirePoint[indexTriangle[2] * 3],
                                                linepnt, linedir, <bint> True):  # corte a-c
         cut2 = 2
-    if not cut1 and AlgSegment.getIntersectionPointWithLine(v1, &wirePoint[indexTriangle[1] * 3],
-                                                            &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
-                                                            <bint> True):  # corte b-c
-        cut1 = 4
-    elif not cut2 and AlgSegment.getIntersectionPointWithLine(v2, &wirePoint[indexTriangle[1] * 3],
-                                                              &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
-                                                              <bint> True):  # corte b-c
-        cut2 = 4
-    if cut1 + cut2 in (3, 5, 6):  # tengo que verificar si los dos puntos de corte se encuentran sobre el mismo segmento
-        for i in range(3):
-            if AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3], &wirePoint[indexTriangle[(i + 1) % 3] * 3], v1,
-                                   <bint> True) and AlgSegment.isInside(&wirePoint[indexTriangle[i] * 3],
-                                                                        &wirePoint[indexTriangle[(i + 1) % 3] * 3], v2,
-                                                                        <bint> True):
-                cut1 = cut2 = 0
-                break
-    return cut1 + cut2
+    if cut1 + cut2 == 3:
+        if AlgVector.isEqual(&wirePoint[indexTriangle[0] * 3], v1):
+            if AlgSegment.getIntersectionPointWithLine(v2, &wirePoint[indexTriangle[1] * 3],
+                                                       &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
+                                                       <bint> True):
+                return -3  # desde v0 hasta cortar al lado opuesto
+            else:
+                return 0  # coincide con un lateral.
+        elif AlgVector.isEqual(&wirePoint[indexTriangle[1] * 3], v1):
+            # if AlgVector.isEqual(&wirePoint[indexTriangle[2] * 3], v2):
+            #     return 0
+            return -5
+        elif AlgVector.isEqual(&wirePoint[indexTriangle[2] * 3], v2):
+            AlgVector.copy(v2, v1) # devuelvo siempre el punto v2 cuando estamos en una esquina
+            return -6
+        return 3
+    if cut1 + cut2 == 0:
+        return 0
+    if not cut1 and not AlgVector.isEqual(v2,
+                                          &wirePoint[indexTriangle[2] * 3]) and AlgSegment.getIntersectionPointWithLine(
+            v1, &wirePoint[indexTriangle[1] * 3],
+            &wirePoint[indexTriangle[2] * 3], linepnt, linedir,
+            <bint> True):  # corte b-c
+        return 6
+    elif not cut2 and not AlgVector.isEqual(v1, &wirePoint[
+        indexTriangle[1] * 3]) and AlgSegment.getIntersectionPointWithLine(v2, &wirePoint[indexTriangle[1] * 3],
+                                                                           &wirePoint[indexTriangle[2] * 3], linepnt,
+                                                                           linedir,
+                                                                           <bint> True):  # corte b-c
+        return 5
+    return 0
 
 cdef list _getEdgeByTriangleIndex(list indTri):
     "Devuelve los edges de una superficie. No tienen porque estar ordenados"
@@ -531,6 +552,7 @@ cdef list _getEdgeByTriangleIndex(list indTri):
 #     return outerList
 
 cdef list _getSurfaceByTriangleIndex(list triIndex):
+    "Function that search compatibility between triangles"
     cdef dict laterales = {}
     cdef dict triangulos = {}
     cdef int numTri = <int> len(triIndex) // 3
@@ -579,266 +601,141 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
     cdef double * v1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * normal = <double *> PyMem_Malloc(3 * sizeof(double))
-    cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
+    # cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vpos = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vtemp1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef int vcorte
-    cdef list pointsLeft = []
+    cdef list cut_point = []
     cdef list triIndexLeft = []
-    cdef list pointsRight = []
     cdef list triIndexRight = []
     cdef list surfaces = []
     cdef dict replDict
-    cdef int i, j, pa, pb, pc
-    cdef AlgVector.PhantomVector phv0, phv1, phv2, phc0, phc1
+    cdef int i, j, pa, pb, pc, tindex
+    cdef AlgVector.PhantomVector phc0, phc1
     cdef double vposit
-    cdef dict laterales
     cdef Surface newSurf
-    cdef list tsurf, surfacesIndex, perimIndex, tPerimIndex, tindex, tPerim
-    cdef int minIndex
-    cdef set pdist
-    cdef AlgWire.IndexPerimeter indPer = AlgWire.IndexPerimeter()
+    cdef list tsurf, t_indexes, t_surface
+
+    def append_tri(list_1, list_2, to_left):
+        if to_left:
+            triIndexLeft.extend([surf.indTri._m[x] if x >= 0 else x for x in list_1])
+            triIndexRight.extend([surf.indTri._m[x] if x >= 0 else x for x in list_2])
+        else:
+            triIndexLeft.extend([surf.indTri._m[x] if x >= 0 else x for x in list_2])
+            triIndexRight.extend([surf.indTri._m[x] if x >= 0 else x for x in list_1])
     try:
         # la normal sera la noral de uno de los triangulos
-        AlgVector.sub(v1, &surf.vectMat._m[surf.indTri._m[1] * 3], &surf.vectMat._m[surf.indTri.m[0] * 3])
-        AlgVector.sub(v2, &surf.vectMat._m[surf.indTri._m[2] * 3], &surf.vectMat._m[surf.indTri.m[0] * 3])
+        AlgVector.sub(v1, &surf.vectMat._m[surf.indTri._m[1] * 3], &surf.vectMat._m[surf.indTri._m[0] * 3])
+        AlgVector.sub(v2, &surf.vectMat._m[surf.indTri._m[2] * 3], &surf.vectMat._m[surf.indTri._m[0] * 3])
         AlgVector.cross(normal, v1, v2)
         vposit = AlgVector.module(normal)
         for i in range(3):
             normal[i] = normal[i] / vposit
-        subnormal[0] = -normal[0]
-        subnormal[1] = -normal[1]
-        subnormal[2] = -normal[2]
+
         AlgVector.cross(vpos, normal, linedir)
         for itri in range(0, surf.indTri._ntriangle * 3, 3):
             vcorte = _splitTriangleByLine(v1, v2, surf.vectMat._m, &surf.indTri._m[itri], linepnt, linedir)
-            if vcorte == 3:  # corte entre el los vectores 0-1 (v1) y 0-2 (v2). El vector aislado es el cero
-                pindep = 0
-                phv0 = AlgVector.PhantomVector()
-                phv0._v = &surf.vectMat._m[surf.indTri._m[itri] * 3]
-                phv1 = AlgVector.PhantomVector()
-                phv1._v = &surf.vectMat._m[surf.indTri._m[itri + 1] * 3]
-                phv2 = AlgVector.PhantomVector()
-                phv2._v = &surf.vectMat._m[surf.indTri._m[itri + 2] * 3]
+            # print("vcorte", vcorte, surf.indTri._m[itri], surf.indTri._m[itri+1], surf.indTri._m[itri+2])
+            # vcorte = 3: v1 entre 0-1 y v2 entre 0-2
+            # vcorte = 5: v1 entre 0-1 y v2 entre 1-2
+            # vcorte = 6: v1 entre 1-2 y v2 entre 0-1
+            # vcorte = -3: corta por 0 y entre 1-2
+            # vcorte = -5: corta por 1 in entre 0-2
+            # vorte = -6: corta por 2 in entre 0-1
+            if vcorte > 0:
                 phc0 = AlgVector.PhantomVector()
                 phc0._v = v1
-                phc1 = AlgVector.PhantomVector()
-                phc1._v = v2
-            elif vcorte == 5:  # corte entre los vectores 0-2 (v2) y 1-2 (v1). El vector aislado es el 2
-                pindep = 1
-                phv0 = AlgVector.PhantomVector()
-                phv0._v = &surf.vectMat._m[surf.indTri._m[itri + 1] * 3]
-                phv1 = AlgVector.PhantomVector()
-                phv1._v = &surf.vectMat._m[surf.indTri._m[itri] * 3]
-                phv2 = AlgVector.PhantomVector()
-                phv2._v = &surf.vectMat._m[surf.indTri._m[itri + 2] * 3]
-                phc0 = AlgVector.PhantomVector()
-                phc0._v = v1
-                phc1 = AlgVector.PhantomVector()
-                phc1._v = v2
-            elif vcorte == 6:  # corte entre los vectores 0-1 (v1) y 1-2 (v2). El vector aislado es el 1
-                pindep = 2
-                phv0 = AlgVector.PhantomVector()
-                phv0._v = &surf.vectMat._m[surf.indTri._m[itri + 2] * 3]
-                phv1 = AlgVector.PhantomVector()
-                phv1._v = &surf.vectMat._m[surf.indTri._m[itri + 1] * 3]
-                phv2 = AlgVector.PhantomVector()
-                phv2._v = &surf.vectMat._m[surf.indTri._m[itri] * 3]
-                phc0 = AlgVector.PhantomVector()
-                phc0._v = v1
-                phc1 = AlgVector.PhantomVector()
-                phc1._v = v2
-            else:
-                phv0 = AlgVector.PhantomVector()
-                phv0._v = &surf.vectMat._m[surf.indTri._m[itri] * 3]
-                phv1 = AlgVector.PhantomVector()
-                phv1._v = &surf.vectMat._m[surf.indTri._m[itri + 1] * 3]
-                phv2 = AlgVector.PhantomVector()
-                phv2._v = &surf.vectMat._m[surf.indTri._m[itri + 2] * 3]
-
-            if vcorte in (3, 5, 6):
-                if AlgLine.isInside(linepnt, linedir, &surf.vectMat._m[surf.indTri._m[itri + pindep] * 3]):
-                    AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri + ((pindep + 1) % 3)] * 3], linepnt)
-                    vposit = -AlgVector.dot(vtemp1, vpos)
+                if not phc0 in cut_point:
+                    cut_point.append(phc0.copy())
+                    phc0_index = -len(cut_point)
                 else:
-                    AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri + pindep] * 3], linepnt)
-                    vposit = AlgVector.dot(vtemp1, vpos)
+                    phc0_index = -(cut_point.index(phc0)+1)
+                phc1 = AlgVector.PhantomVector()
+                phc1._v = v2
+                if not phc1 in cut_point:
+                    cut_point.append(phc1.copy())
+                    phc1_index = -len(cut_point)
+                else:
+                    phc1_index = -(cut_point.index(phc1)+1)
 
-                if vposit > 0:
-                    # izquierdo
-                    for ph in (phv0, phc0, phc1):
-                        if ph in pointsLeft:
-                            triIndexLeft.append(pointsLeft.index(ph))
-                        else:
-                            pointsLeft.append(ph.copy())
-                            triIndexLeft.append(len(pointsLeft) - 1)
-                    # derecho
-                    if phc0 in (phv1, phv2):
-                        for ph in (phc1, phv1, phv2):
-                            if ph in pointsRight:
-                                triIndexRight.append(pointsRight.index(ph))
-                            else:
-                                pointsRight.append(ph.copy())
-                                triIndexRight.append(len(pointsRight) - 1)
-                    elif phc1 in (phv1, phv2):
-                        for ph in (phc0, phv1, phv2):
-                            if ph in pointsRight:
-                                triIndexRight.append(pointsRight.index(ph))
-                            else:
-                                pointsRight.append(ph.copy())
-                                triIndexRight.append(len(pointsRight) - 1)
-                    else:
-                        for ph in (phc0, phv1, phv2, phc0, phv2, phc1):
-                            if ph in pointsRight:
-                                triIndexRight.append(pointsRight.index(ph))
-                            else:
-                                pointsRight.append(ph.copy())
-                                triIndexRight.append(len(pointsRight) - 1)
-                elif vposit < 0:
-                    # izquierdo
-                    if phc0 in (phv1, phv2):
-                        for ph in (phc1, phv1, phv2):
-                            if ph in pointsLeft:
-                                triIndexLeft.append(pointsLeft.index(ph))
-                            else:
-                                pointsLeft.append(ph.copy())
-                                triIndexLeft.append(len(pointsLeft) - 1)
-                    elif phc1 in (phv1, phv2):
-                        for ph in (phc0, phv1, phv2):
-                            if ph in pointsLeft:
-                                triIndexLeft.append(pointsLeft.index(ph))
-                            else:
-                                pointsLeft.append(ph.copy())
-                                triIndexLeft.append(len(pointsLeft) - 1)
-                    else:
-                        for ph in (phc0, phv1, phv2, phc0, phv2, phc1):
-                            if ph in pointsLeft:
-                                triIndexLeft.append(pointsLeft.index(ph))
-                            else:
-                                pointsLeft.append(ph.copy())
-                                triIndexLeft.append(len(pointsLeft) - 1)
-                    # derecho
-                    for ph in (phv0, phc0, phc1):
-                        if ph in pointsRight:
-                            triIndexRight.append(pointsRight.index(ph))
-                        else:
-                            pointsRight.append(ph.copy())
-                            triIndexRight.append(len(pointsRight) - 1)
-            else:
+            elif vcorte < 0:
+                phc0 = AlgVector.PhantomVector()
+                phc0._v = v2
+                if not phc0 in cut_point:
+                    cut_point.append(phc0.copy())
+                    phc0_index = -len(cut_point)
+                else:
+                    phc0_index = -(cut_point.index(phc0) + 1)
+                phc1_index = 0
+
+            if vcorte == -3:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri+2] * 3], linepnt)
+                append_tri([itri + 2, itri, phc0_index], [itri, itri + 1, phc0_index], AlgVector.dot(vtemp1, vpos) > 0)
+            elif vcorte == -5:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri] * 3], linepnt)
+                append_tri([itri, itri+1, phc0_index], [itri+1, itri + 2, phc0_index], AlgVector.dot(vtemp1, vpos) > 0)
+            elif vcorte == -6:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri+1] * 3], linepnt)
+                append_tri([itri + 1, itri + 2, phc0_index], [itri + 2, itri, phc0_index], AlgVector.dot(vtemp1, vpos) > 0)
+            elif vcorte == 3:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri] * 3], linepnt)
+                append_tri([itri, phc0_index, phc1_index], [phc0_index, itri+1, itri+2, phc0_index, itri+2, phc1_index], AlgVector.dot(vtemp1, vpos) > 0)
+            elif vcorte == 5:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri+1] * 3], linepnt)
+                append_tri([itri+1, phc1_index, phc0_index],
+                           [phc1_index, itri + 2, itri, phc1_index, itri, phc0_index],
+                           AlgVector.dot(vtemp1, vpos) > 0)
+            elif vcorte == 6:
+                AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri+2] * 3], linepnt)
+                append_tri([itri+2, phc1_index, phc0_index],
+                           [phc1_index, itri, itri + 1, phc1_index, itri + 1, phc0_index],
+                           AlgVector.dot(vtemp1, vpos) > 0)
+            else: # todos los puntos estan a izquierda o derecha
                 for i in range(3):
-                    vposit = 0
-                    if not AlgLine.isInside(linepnt, linedir, &surf.vectMat._m[surf.indTri._m[itri + i] * 3]):
-                        AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri + i] * 3], linepnt)
-                        vposit = AlgVector.dot(vtemp1, vpos)
-                        break
-                if vposit > 0:  # todos los putnos estan a la izquierda
-                    for ph in (phv0, phv1, phv2):
-                        if ph in pointsLeft:
-                            triIndexLeft.append(pointsLeft.index(ph))
-                        else:
-                            pointsLeft.append(ph.copy())
-                            triIndexLeft.append(len(pointsLeft) - 1)
-                elif vposit < 0:
-                    for ph in (phv0, phv1, phv2):
-                        if ph in pointsRight:
-                            triIndexRight.append(pointsRight.index(ph))
-                        else:
-                            pointsRight.append(ph.copy())
-                            triIndexRight.append(len(pointsRight) - 1)
-        # leftside
-        if pointsLeft:
-            surfacesIndex = _getSurfaceByTriangleIndex(triIndexLeft)
-            for tsurf in surfacesIndex:
-                pdist = set(tsurf)
-                minIndex = min(pdist)
+                    AlgVector.sub(vtemp1, &surf.vectMat._m[surf.indTri._m[itri+i] * 3], linepnt)
+                    vposit = AlgVector.dot(vtemp1, vpos)
+                    if abs(vposit) < presition:
+                        continue
+                    append_tri([itri,itri+1, itri+2],[], vposit > 0)
+                    break
+        # cada matriz de secciones tendra todos los puntos distintos que hayan en triIndexLeft y triIndexRight + todos los puntos que hay en cut_point
+        # print(triIndexLeft, triIndexRight)
+        for t_indexes in (triIndexLeft, triIndexRight):
+            if not t_indexes:
+                surfaces.append([])
+                continue
+            t_surface = []
+            for tsurf in _getSurfaceByTriangleIndex(t_indexes):
                 newSurf = Surface()
-                newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
-                newSurf.vectMat._rows = <unsigned int> len(pdist)
+                newSurf.vectMat._m = <double *> PyMem_Malloc(3 * (len(tsurf)+len(cut_point)) * sizeof(double))
+                newSurf.vectMat._rows = <unsigned int> (len(tsurf)+len(cut_point))
                 newSurf.vectMat._cols = 3
                 replDict = {}
                 i = 0
                 for tindex in tsurf:
                     if replDict.get(tindex) is None:
-                        for j in range(3):
-                            newSurf.vectMat._m[i * 3 + j] = pointsLeft[tindex][j]
+                        if tindex >= 0: # es un punto de la matriz original
+                            for j in range(3):
+                                newSurf.vectMat._m[i * 3 + j] = surf.vectMat._m[tindex*3 + j]
+                        else:
+                            for j in range(3):
+                                newSurf.vectMat._m[i * 3 + j] = cut_point[-(tindex+1)][j]
                         replDict[tindex] = i
                         i += 1
                 newSurf.indTri.setList([replDict[i] for i in tsurf])
                 tEdgeIndex = _getEdgeByTriangleIndex([replDict[i] for i in tsurf])  #[0,1,-1,1,2,-1...
-                # perimIndex = []
-                # tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
-                # tPerimIndex = list(
-                #     zip(tPerimIndex, [min([pointsLeft[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
-                # tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
-                # i = 0
-                # while tPerimIndex:
-                #     tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
-                #     indPer.setList(tPerim)
-                #     AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
-                #     if i == 0:
-                #         if not AlgVector.isEqual(vtemp1, normal):
-                #             tPerim = list(reversed(tPerim))
-                #         i += 1
-                #     else:
-                #         if not AlgVector.isEqual(vtemp1, subnormal):
-                #             tPerim = list(reversed(tPerim))
-                #     perimIndex.extend(tPerim)
-                #     if tPerimIndex:
-                #         perimIndex.append(-1)
-                # newSurf.indPer.setList(perimIndex)
                 newSurf.indPer.setList(tEdgeIndex)
-                sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
-                surfaces.append(newSurf)
-        # rightside
-        if pointsRight:
-            surfacesIndex = _getSurfaceByTriangleIndex(triIndexRight)
-            for tsurf in surfacesIndex:
-                pdist = set(tsurf)
-                minIndex = min(pdist)
-                newSurf = Surface()
-                newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
-                newSurf.vectMat._rows = <unsigned int> len(pdist)
-                newSurf.vectMat._cols = 3
-                replDict = {}
-                i = 0
-                for tindex in tsurf:
-                    if replDict.get(tindex) is None:
-                        for j in range(3):
-                            newSurf.vectMat._m[i * 3 + j] = pointsRight[tindex][j]
-                        replDict[tindex] = i
-                        i += 1
-                newSurf.indTri.setList([replDict[i] for i in tsurf])
-                sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
-                tEdgeIndex = _getEdgeByTriangleIndex([replDict[i] for i in tsurf])  #[0,1,-1,1,2,-1...
-                newSurf.indPer.setList(tEdgeIndex)
-                # perimIndex = []
-                # tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
-                # tPerimIndex = list(
-                #     zip(tPerimIndex, [min([pointsRight[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
-                # tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
-                # i = 0
-                # while tPerimIndex:
-                #     tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
-                #     indPer.setList(tPerim)
-                #     AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
-                #     if i == 0:
-                #         if not AlgVector.isEqual(vtemp1, normal):
-                #             tPerim = list(reversed(tPerim))
-                #         i += 1
-                #     else:
-                #         if not AlgVector.isEqual(vtemp1, subnormal):
-                #             tPerim = list(reversed(tPerim))
-                #     perimIndex.extend(tPerim)
-                #     if tPerimIndex:
-                #         perimIndex.append(-1)
-                # newSurf.indPer.setList(perimIndex)
-                surfaces.append(newSurf)
+                # sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
+                t_surface.append(newSurf)
+            surfaces.append(t_surface)
         return surfaces
+
+
     finally:
         PyMem_Free(v1)
         PyMem_Free(v2)
         PyMem_Free(normal)
-        PyMem_Free(subnormal)
+        # PyMem_Free(subnormal)
         PyMem_Free(vpos)
         PyMem_Free(vtemp1)
 
@@ -1306,7 +1203,7 @@ cdef class Surface():
             if kwargs.get('indTri') is None:
                 twire = AlgWire.Wire()
                 twire.vectMat = self.vectMat
-                tperim = list(range(<int>self.vectMat._rows))
+                tperim = list(range(<int> self.vectMat._rows))
                 tperim.append(0)
                 twire.indPer.setList(tperim)
                 normal = twire.normal()
@@ -1341,6 +1238,7 @@ cdef class Surface():
         indices = self.indPer.__serialize__()
         if not indices[-1] == -1:
             indices.append(-1)
+
         cortes = [idx for idx, val in enumerate(indices) if val == -1]
         cortes.insert(0, -1)
         edges = [indices[cortes[i - 1] + 1: cortes[i]] for i in range(1, len(cortes))]
@@ -1355,7 +1253,7 @@ cdef class Surface():
                 i = 0
                 continue
             elif edges[i][-1] == curWire[-1]:
-                curWire.extend(list(reversed([i][:-1])))
+                curWire.extend(list(reversed(edges[i][:-1])))
                 edges.pop(i)
                 i = 0
                 continue
