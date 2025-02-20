@@ -56,6 +56,8 @@ with open("requirements.txt") as fp:
 #     dev_requires = fp.read().strip().split("\n")
 
 setup(
+    name="CLinAlg",
+    version="0.3.0",
     ext_modules=extensions,
     install_requires=install_requires,
     extras_require={

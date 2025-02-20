@@ -610,7 +610,7 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
     cdef list triIndexRight = []
     cdef list surfaces = []
     cdef dict replDict
-    cdef int i, j, pa, pb, pc, tindex
+    cdef int i, j, pa, pb, pc, tindex, num_p
     cdef AlgVector.PhantomVector phc0, phc1
     cdef double vposit
     cdef Surface newSurf
@@ -700,34 +700,36 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
                     break
         # cada matriz de secciones tendra todos los puntos distintos que hayan en triIndexLeft y triIndexRight + todos los puntos que hay en cut_point
         # print(triIndexLeft, triIndexRight)
+
         for t_indexes in (triIndexLeft, triIndexRight):
             if not t_indexes:
-                surfaces.append([])
+                surfaces.append(None)
                 continue
-            t_surface = []
-            for tsurf in _getSurfaceByTriangleIndex(t_indexes):
-                newSurf = Surface()
-                newSurf.vectMat._m = <double *> PyMem_Malloc(3 * (len(tsurf)+len(cut_point)) * sizeof(double))
-                newSurf.vectMat._rows = <unsigned int> (len(tsurf)+len(cut_point))
-                newSurf.vectMat._cols = 3
-                replDict = {}
-                i = 0
-                for tindex in tsurf:
-                    if replDict.get(tindex) is None:
-                        if tindex >= 0: # es un punto de la matriz original
-                            for j in range(3):
-                                newSurf.vectMat._m[i * 3 + j] = surf.vectMat._m[tindex*3 + j]
-                        else:
-                            for j in range(3):
-                                newSurf.vectMat._m[i * 3 + j] = cut_point[-(tindex+1)][j]
-                        replDict[tindex] = i
-                        i += 1
-                newSurf.indTri.setList([replDict[i] for i in tsurf])
-                tEdgeIndex = _getEdgeByTriangleIndex([replDict[i] for i in tsurf])  #[0,1,-1,1,2,-1...
-                newSurf.indPer.setList(tEdgeIndex)
-                # sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
-                t_surface.append(newSurf)
-            surfaces.append(t_surface)
+            # t_surface = []
+            # for tsurf in _getSurfaceByTriangleIndex(t_indexes):
+            # print(t_indexes)
+            newSurf = Surface()
+            num_p = len(set(t_indexes))
+            newSurf.vectMat._m = <double *> PyMem_Malloc(3 * num_p * sizeof(double))
+            newSurf.vectMat._rows = <unsigned int> num_p
+            newSurf.vectMat._cols = 3
+            replDict = {}
+            i = 0
+            for tindex in t_indexes:
+                if replDict.get(tindex) is None:
+                    if tindex >= 0: # es un punto de la matriz original
+                        for j in range(3):
+                            newSurf.vectMat._m[i * 3 + j] = surf.vectMat._m[tindex*3 + j]
+                    else:
+                        for j in range(3):
+                            newSurf.vectMat._m[i * 3 + j] = cut_point[-(tindex+1)][j]
+                    replDict[tindex] = i
+                    i += 1
+            newSurf.indTri.setList([replDict[i] for i in t_indexes])
+            tEdgeIndex = _getEdgeByTriangleIndex([replDict[i] for i in t_indexes])  #[0,1,-1,1,2,-1...
+            newSurf.indPer.setList(tEdgeIndex)
+            # sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
+            surfaces.append(newSurf)
         return surfaces
 
 
@@ -884,7 +886,7 @@ cdef list _triangularize(double tn, double tp, list tlist, double bn, double bp,
 cdef double _sortkey(tuple v):
     return v[1]
 
-cpdef list trapezeToSurfaceYZ(list trapeces):
+cpdef Surface trapezeToSurfaceYZ(list trapeces):
     "Function that convert trapeze list [[h 0, bs 1, bi 2, es 3, ei 4, sym 5]... ] into surface object. The trapezes will be defined from upper to lower"
     # primero chequeo todos los trapecios y si hubiera algun simetrico con incompatibilidad de desarrollo, lo divido por la mitad
     cdef int i, npoints, nstart, tindex
@@ -989,49 +991,54 @@ cpdef list trapezeToSurfaceYZ(list trapeces):
         for ttrap, h in zip(tpoints, hpoints):
             for py in ttrap:
                 pointList.append([0, py, h])
-        surfacesIndex = _getSurfaceByTriangleIndex(triIndex)
-        surfaces = []
-        for tsurf in surfacesIndex:
-            pdist = set(tsurf)
-            newSurf = Surface()
-            newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pdist) * sizeof(double))
-            newSurf.vectMat._rows = <unsigned int> len(pdist)
-            newSurf.vectMat._cols = 3
-            replDict = {}
-            i = 0
-            for tindex in tsurf:
-                if replDict.get(tindex) is None:
-                    for j in range(3):
-                        newSurf.vectMat._m[i * 3 + j] = pointList[tindex][j]
-                    replDict[tindex] = i
-                    i += 1
-            newSurf.indTri.setList([replDict[i] for i in tsurf])
-            sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
-            tPerimIndex = _getEdgeByTriangleIndex([replDict[i] for i in tsurf])
-            newSurf.indPer.setList(tPerimIndex)
-            # perimIndex = []
-            # tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
-            # # ordeno los perimetros de izquierda a derecha. El que tenga el valor mas a la izquierda sera necesariamente
-            # tPerimIndex = list(zip(tPerimIndex, [min([pointList[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
-            # tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
-            # i = 0
-            # while tPerimIndex:
-            #     tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
-            #     indPer.setList(tPerim)
-            #     AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
-            #     if i == 0:
-            #         if not AlgVector.isEqual(vtemp1, normal):
-            #             tPerim = list(reversed(tPerim))
-            #         i += 1
-            #     else:
-            #         if not AlgVector.isEqual(vtemp1, subnormal):
-            #             tPerim = list(reversed(tPerim))
-            #     perimIndex.extend(tPerim)
-            #     if tPerimIndex:
-            #         perimIndex.append(-1)
-            # newSurf.indPer.setList(perimIndex)
-            surfaces.append(newSurf)
-        return surfaces
+        # print('triIndex', triIndex)
+        # print('pointList', pointList)
+        # surfacesIndex = _getSurfaceByTriangleIndex(triIndex)
+        # surfaces = []
+
+        # for tsurf in surfacesIndex:
+        # print('tsurf', tsurf)
+        # pdist = set(triIndex)
+        newSurf = Surface()
+        newSurf.vectMat._m = <double *> PyMem_Malloc(3 * len(pointList) * sizeof(double))
+        newSurf.vectMat._rows = <unsigned int> len(pointList)
+        newSurf.vectMat._cols = 3
+        replDict = {}
+        i = 0
+        for tindex in triIndex:
+            if replDict.get(tindex) is None:
+                for j in range(3):
+                    newSurf.vectMat._m[i * 3 + j] = pointList[tindex][j]
+                replDict[tindex] = i
+                i += 1
+        newSurf.indTri.setList([replDict[i] for i in triIndex])
+        sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
+        tPerimIndex = _getEdgeByTriangleIndex([replDict[i] for i in triIndex])
+        # print('tPerimIndex', tPerimIndex)
+        newSurf.indPer.setList(tPerimIndex)
+        # perimIndex = []
+        # tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
+        # # ordeno los perimetros de izquierda a derecha. El que tenga el valor mas a la izquierda sera necesariamente
+        # tPerimIndex = list(zip(tPerimIndex, [min([pointList[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
+        # tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
+        # i = 0
+        # while tPerimIndex:
+        #     tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
+        #     indPer.setList(tPerim)
+        #     AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
+        #     if i == 0:
+        #         if not AlgVector.isEqual(vtemp1, normal):
+        #             tPerim = list(reversed(tPerim))
+        #         i += 1
+        #     else:
+        #         if not AlgVector.isEqual(vtemp1, subnormal):
+        #             tPerim = list(reversed(tPerim))
+        #     perimIndex.extend(tPerim)
+        #     if tPerimIndex:
+        #         perimIndex.append(-1)
+        # newSurf.indPer.setList(perimIndex)
+        # surfaces.append(newSurf)
+        return newSurf
     except Exception as err:
         print(err)
         raise

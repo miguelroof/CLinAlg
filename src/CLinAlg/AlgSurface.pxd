@@ -33,7 +33,7 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
 
 cpdef tuple mainAxisInertia(Matrix tensor)
 
-cpdef list trapezeToSurfaceYZ(list trapeces)
+cpdef Surface trapezeToSurfaceYZ(list trapeces)
 
 cdef class IndexTriangle():
     cdef int * _m
