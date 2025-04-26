@@ -24,6 +24,7 @@ cdef void project(double * todouble, double * v1, double * v2)
 
 cdef class PhantomVector2D():
     cdef double * _v
+    cdef object _ref_object
 
 cdef class Vector2D(PhantomVector2D):
     pass

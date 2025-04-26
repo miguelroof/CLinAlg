@@ -1207,6 +1207,7 @@ cdef class Surface():
             else:
                 indPer = kwargs['indPer']
             self.indPer.setList(indPer)
+
             if kwargs.get('indTri') is None:
                 twire = AlgWire.Wire()
                 twire.vectMat = self.vectMat

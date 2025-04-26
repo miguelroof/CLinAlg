@@ -29,6 +29,28 @@ cdef void normalize_3d_to_2d(double * to_vec2d, double * vect3darray, int num_po
     finally:
         PyMem_Free(v_sub)
 
+cdef int sign(double v):
+    "Return 1 if possitif or 0, -1 elsewhere"
+    return 1 if v >= 0 else -1
+
+
+cdef bint is_inside(double * vA, double * vB, double * vC, double * vP):
+    "Check if point p is inside triangle vA, vB vC in 2d"
+    cdef double v1 = <double *> PyMem_Malloc(2* sizeof(double))
+    cdef double v2 = <double *> PyMem_Malloc(2*sizeof(double))
+    cdef double v3 = <double *> PyMem_Malloc(2*sizeof(double))
+    cdef double v12, v23, v31
+
+    AlgVector2D.sub(v1, vA, vP)
+    AlgVector2D.sub(v2, vB, vP)
+    AlgVector2D.sub(v3, vC, vP)
+    v12 = AlgVector2D.cross(v1,v2)
+    v23 = AlgVector2D.cross(v2,v3)
+    v31 = AlgVector2D.cross(v3,v1)
+    return sign(v12) == sign(v23) and sign(v12) == sign(v31)
+
+
+
 cdef bint should_swap(double * vCom, double * vA, double * vB, double * vP):
     "Return True if should swap the triangles vCom-vA-vB with oposite point vP"
     cdef double * v13 = <double *> PyMem_Malloc(2 * sizeof(double))
@@ -71,7 +93,7 @@ cdef void split_triangle_into_3(double * plist2d, int num_point, int * tri_verte
     :param lastTriIndex: Last triangle added to tri_vertex array (after this index, the array is not initializated
     """
     cdef int i
-    cdef int v0, v1,v2 # gets the ver
+    cdef int v0, v1,v2 # gets the vertices of triangle
     cdef double * vP
     cdef double * v1 = <double *> PyMem_Malloc(2*sizeof(double))
     cdef double * v2 = <double *> PyMem_Malloc(2*sizeof(double))
@@ -83,13 +105,14 @@ cdef void split_triangle_into_3(double * plist2d, int num_point, int * tri_verte
         new_tri = [[tri_vertex[triIndex*3], tri_vertex[triIndex*3+1], pointIndex],
                    [tri_vertex[triIndex*3+1], tri_vertex[triIndex*3+2], pointIndex],
                    [tri_vertex[triIndex*3+2], tri_vertex[triIndex*3], pointIndex]]
-        new_tri_index = [triIndex, lastTriIndex+1, lastTriIndex+2] # he agregado nuevos puntos
+        new_tri_index = [triIndex, lastTriIndex+1, lastTriIndex+2] # he agregado nuevos triangulos
         vertex_in_new_tri = [[],[],[]]
-        ptocheck = [i for i,x in enumerate(vertex_in_tri) if x == triIndex and i != pointIndex]
+        ptocheck = [i for i,x in enumerate(vertex_in_tri) if x == triIndex and i != pointIndex] # aqui estoy diciendo que chequee todos estos indices dado que tambien estan en el triangulo
         vP = &plist2d[pointIndex*2]
         for k in range(2):
             if not ptocheck:
                 break
+
 
     finally:
         PyMem_Free(v1)
