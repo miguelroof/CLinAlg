@@ -1,6 +1,5 @@
+cdef double M_PI, presition
 
-cdef double presition
+cpdef float getPresition()
 
-cpdef double getPresition()
-
-cpdef void setPresition(double presval)
+cpdef void setPresition(float presval)

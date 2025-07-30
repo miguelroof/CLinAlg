@@ -1,6 +1,7 @@
-from cpython.mem cimport PyMem_Malloc, PyMem_Free
+from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
 from libc.math cimport sqrt, pow, fabs
 from .AlgTool cimport presition
+
 
 
 cdef double determinant(double * mat, unsigned int rows):
@@ -15,10 +16,11 @@ cdef double determinant(double * mat, unsigned int rows):
     elif rows == 1:
         return mat[0]
     else:
+        subarray = <double *> PyMem_Malloc((rows - 1) * (rows - 1) * sizeof(double))
+
         try:
-            subarray = <double *> PyMem_Malloc((rows-1)*(rows-1)*sizeof(double))
             if not subarray:
-                raise MemoryError()
+                raise MemoryError("No subarray in matrix module")
             for i in range(rows):
                 curind = 0
                 for j in range(1, rows):
@@ -30,7 +32,9 @@ cdef double determinant(double * mat, unsigned int rows):
                 compose = determinant(subarray, rows-1)
                 data += mat[i] * (pow(-1,i) * compose)
         finally:
-            PyMem_Free(subarray)
+            if subarray != NULL:
+                PyMem_Free(subarray)
+                subarray = NULL
     return data
 
 
@@ -41,12 +45,14 @@ cdef tuple eig(double * _mat, unsigned int nsize, bint tosorted):
     cdef double * eigvalue
     cdef double mu, val
     cdef Matrix matVect
+    p = <double *> PyMem_Malloc(nsize * nsize * sizeof(double))  # puntero a los autovectores
+    a = <double *> PyMem_Malloc(
+        nsize * nsize * sizeof(double))  # puntero copia de la matriz inicial, para hacer los giros
+    eigvalue = <double *> PyMem_Malloc(nsize * sizeof(double))  # puntero a los elementos autovalores
+
     try:
-        p = <double *> PyMem_Malloc(nsize*nsize*sizeof(double)) # puntero a los autovectores
-        a = <double *> PyMem_Malloc(nsize*nsize*sizeof(double))  # puntero copia de la matriz inicial, para hacer los giros
-        eigvalue = <double *> PyMem_Malloc(nsize*sizeof(double)) # puntero a los elementos autovalores
         if not p or not a or not eigvalue:
-            raise MemoryError()
+            raise MemoryError("Error on eigenvalues in matrix module")
         for i in range(nsize):
             for j in range(nsize):
                 if i == j:
@@ -68,7 +74,6 @@ cdef tuple eig(double * _mat, unsigned int nsize, bint tosorted):
             iterCounter += 1
         if iterCounter >= 30:
             raise ArithmeticError("No convergency for Jacobi method")
-
         if tosorted:
             for i in range(<unsigned int>(nsize-1)):
                 index = i
@@ -88,11 +93,17 @@ cdef tuple eig(double * _mat, unsigned int nsize, bint tosorted):
         matVect = Matrix()
         matVect.pushdata(nsize, nsize, p)
         return [eigvalue[i] for i in range(nsize)], matVect
+
     finally:
-        # print("borro")
-        PyMem_Free(a)
-        PyMem_Free(p)
-        PyMem_Free(eigvalue)
+        if a != NULL:
+            PyMem_Free(a)
+            a = NULL
+        if p != NULL:
+            PyMem_Free(p)
+            p = NULL
+        if eigvalue != NULL:
+            PyMem_Free(eigvalue)
+            eigvalue = NULL
 
 cdef void transpose(double * tomat, double * fmat, unsigned int rows, unsigned int cols):
     cdef unsigned int i,j
@@ -107,13 +118,15 @@ cdef void adjugate(double * tomat, double * fmat, unsigned int rows, unsigned in
     cdef double * subarray
     if rows == 1:
         tomat[0] = fmat[0]
+        subarray = NULL
         return
-    subarray = <double *> PyMem_Malloc((rows-1)*(cols-1)*sizeof(double))
-    if not subarray:
-        raise MemoryError()
     try:
         if cols != rows:
             raise ArithmeticError("The matrix should be squared")
+        subarray = <double *> PyMem_Malloc((rows - 1) * (cols - 1) * sizeof(double))
+        if not subarray:
+            raise MemoryError("No subarray in matrix module")
+
         curind = 0
         for i in range(rows):
             for j in range(cols):
@@ -121,19 +134,23 @@ cdef void adjugate(double * tomat, double * fmat, unsigned int rows, unsigned in
                 composedDet = determinant(subarray, rows-1)
                 tomat[curind] = composedDet*(pow(-1,(i+j)))
                 curind += 1
+    except Exception as err:
+        raise err
     finally:
-        PyMem_Free(subarray)
+        if subarray != NULL:
+            PyMem_Free(subarray)
+            subarray = NULL
 
 cdef void inverse(double * tomat, double * fmat, unsigned int rows, unsigned int cols):
     cdef unsigned int i
     cdef double determinante
     cdef double * tarray
     try:
-        tarray = <double *> PyMem_Malloc(rows*cols*sizeof(double))
-        if not tarray:
-            raise MemoryError()
         if cols != rows:
             raise ArithmeticError("Is not possible to inverse not square matrix")
+        tarray = <double *> PyMem_Malloc(rows*cols*sizeof(double))
+        if not tarray:
+            raise MemoryError("No tarray in inverse funciton at Matrix module")
         determinante = determinant(fmat, rows)
         if fabs(determinante) < presition:
             raise ArithmeticError("The matrix determinant should be NOT 0")
@@ -142,7 +159,9 @@ cdef void inverse(double * tomat, double * fmat, unsigned int rows, unsigned int
         for i in range(cols*rows):
             tomat[i] = tomat[i]/determinante
     finally:
-        PyMem_Free(tarray)
+        if tarray != NULL:
+            PyMem_Free(tarray)
+            tarray = NULL
 
 
 cdef double threshold(unsigned int n,double * a):
@@ -236,38 +255,6 @@ cdef void sub(double * tomat, double * mat1, double * mat2, unsigned int rows, u
             p = j+i*cols
             tomat[p] = mat1[p] - mat2[p]
 
-cpdef Matrix zeros(int row, int col):
-    cdef int i
-    cdef Matrix newMat
-    newMat = Matrix()
-    col = col or row
-    newMat._m = <double *> PyMem_Malloc((row)*(col)*sizeof(double))
-    if not newMat._m:
-        raise MemoryError()
-    for i in range(col*row):
-        newMat._m[i] = 0.0
-    newMat._rows = (<unsigned int>row)
-    newMat._cols = (<unsigned int>col)
-    return newMat
-
-cpdef Matrix identity(int n):
-    cdef int i,j,k
-    cdef Matrix newMat
-    newMat = Matrix()
-    newMat._m = <double *> PyMem_Malloc(n*n*sizeof(double))
-    if not newMat._m:
-        raise MemoryError()
-    k = 0
-    for i in range(n):
-        for j in range(n):
-            if i == j:
-                newMat._m[k] = 1.0
-            else:
-                newMat._m[k] = 0.0
-            k += 1
-    newMat._rows = <unsigned int>n
-    newMat._cols = <unsigned int>n
-    return newMat
 
 cdef bint hasLine(double * mat, unsigned int rows, unsigned int cols, double * vector, bint byRows):
     """
@@ -315,7 +302,7 @@ cdef class Matrix():
             self._cols = int(len(mat[0]))
             self._m = <double *> PyMem_Malloc(self._rows * self._cols * sizeof(double))
             if not self._m:
-                raise MemoryError()
+                raise MemoryError("No Matrix initialization")
             for i in range(self._rows):
                 for j in range(self._cols):
                     self._m[j+i*self._cols] = mat[i][j]
@@ -327,16 +314,20 @@ cdef class Matrix():
 
 
     def __dealloc__(Matrix self):
-        PyMem_Free(self._m)
+        if self._m:
+            # print("BORRADO DE MATRIZ %i x %i" % (self.rows, self.cols))
+            PyMem_Free(self._m)
+            self._m = NULL
 
     #.........................................C METHODS...........................................................
 
-    cdef pushdata(Matrix self, unsigned int rows,unsigned int cols, double * datalist):
+    cdef void pushdata(Matrix self, unsigned int rows,unsigned int cols, double * datalist):
         cdef unsigned int i
         PyMem_Free(self._m)
+        self._m = NULL
         self._m = <double *> PyMem_Malloc(rows * cols * sizeof(double))
         if not self._m:
-            raise MemoryError()
+            raise MemoryError("Error at alocating memory")
         self._rows = rows
         self._cols = cols
         for i in range(rows*cols):
@@ -369,6 +360,7 @@ cdef class Matrix():
                 newMat[i*numcols+k] = self.c_get(i, j)
         if self._m: #libero la memoria. borro los datos
             PyMem_Free(self._m)
+            self._m = NULL
         self._m = newMat
         self._cols = numcols
 
@@ -392,18 +384,24 @@ cdef class Matrix():
                 newMat[k*self._cols+j] = self.c_get(i,j)
         if self._m: #libero la memoria. borro los datos
             PyMem_Free(self._m)
+            self._m = NULL
         self._m = newMat
         self._rows = numrows
 
     #........................PYTHON METHODS.............................
 
-    def pythonize(self):
+
+    def pythonized(self):
         cdef unsigned int i,j
         mat = [[self.c_get(i,j) for j in range(self._cols)] for i in range(self._rows)]
         return mat
 
+    def toList(self):
+        return self.pythonized()
+
+
     def __repr__(self):
-        mat = self.pythonize()
+        mat = self.pythonized()
         return 'Matrix(\t' + ",\n\t\t".join([str(["%.3f" % x for x in row]) for row in mat]) + ")"
 
     def __str__(self):
@@ -412,23 +410,41 @@ cdef class Matrix():
     def __getitem__(Matrix self, pos):
         if isinstance(pos, tuple) and len(pos) == 2:
             if isinstance(pos[0],int) and isinstance(pos[1], int):
+                if pos[0] >= self._rows or pos[1] >= self._cols:
+                    raise IndexError("Matrix size are incompatible")
                 return self._m[pos[1]+pos[0]*self._cols]
             elif isinstance(pos[0], slice) and isinstance(pos[1], slice):
                 rangerows = range(pos[0].start or 0, pos[0].stop or self._rows, pos[0].step or 1)
                 rangecols = range(pos[1].start or 0, pos[1].stop or self._cols, pos[1].step or 1)
+                if rangerows.start < 0 or rangerows.start > self._rows or rangerows.stop < 0 or rangerows.stop > self._rows:
+                    raise IndexError("Matrix size are incompatible")
+                if rangecols.start < 0 or rangecols.start > self._cols or rangecols.stop < 0 or rangecols.stop > self._cols:
+                    raise IndexError("Matrix size are incompatible")
                 return Matrix([[self.c_get(i,j) for j in rangecols] for i in rangerows])
             elif isinstance(pos[0], int) and isinstance(pos[1], slice):
+                if pos[0] >= self._rows or pos[0] < 0:
+                    raise IndexError("Matrix size are incompatible")
                 rangerows = [pos[0]]
                 rangecols = range(pos[1].start or 0, pos[1].stop or self._cols, pos[1].step or 1)
+                if rangecols.start < 0 or rangecols.start > self._cols or rangecols.stop < 0 or rangecols.stop > self._cols:
+                    raise IndexError("Matrix size are incompatible")
                 return Matrix([[self.c_get(i,j) for j in rangecols] for i in rangerows])
             elif isinstance(pos[0], slice) and isinstance(pos[1], int):
                 rangerows = range(pos[0].start or 0, pos[0].stop or self._rows, pos[0].step or 1)
+                if rangerows.start < 0 or rangerows.start > self._rows or rangerows.stop < 0 or rangerows.stop > self._rows:
+                    raise IndexError("Matrix size are incompatible")
+                if pos[1] >= self._cols or pos[1] < 0:
+                    raise IndexError("Matrix size are incompatible")
                 rangecols = [pos[1]]
                 return Matrix([[self.c_get(i,j) for j in rangecols] for i in rangerows])
         elif isinstance(pos, int):
             if self._rows == 1:
+                if pos >= self._cols:
+                    raise IndexError("Matrix size are incompatible")
                 return self._m[pos]
             else:
+                if pos >= self._rows:
+                    raise IndexError("Matrix size are incompatible")
                 return Matrix([[self._m[pos*self._cols+j] for j in range(self._cols)]])
 
     def __setitem__(Matrix self, pos:tuple, value):
@@ -436,7 +452,7 @@ cdef class Matrix():
 
 
     def __json__(self):
-        return {'__jsoncls__': 'CLinAlg.AlgMatrix:Matrix.from_JSON', 'm': self.pythonize()}
+        return {'__jsoncls__': 'CLinAlg.AlgMatrix:Matrix.from_JSON', 'm': self.pythonized()}
 
     @classmethod
     def from_JSON(cls, jsondict):
@@ -453,17 +469,16 @@ cdef class Matrix():
         import mpmath
         # print("AlgMatrix.Matrix cannot solve eigenvalue. Use mpmath")
         n = self.rows
-        eigvalue, rot = mpmath.eig(mpmath.matrix(self.pythonize()))
+        eigvalue, rot = mpmath.eig(mpmath.matrix(self.pythonized()))
         eigvalue = mpmath.diag(eigvalue)
         eigvalue = [float(eigvalue[i, i]) for i in range(n)]
         eigvect = [[float(x) for x in row] for row in rot.tolist()]
         return eigvalue, Matrix(eigvect)
 
-    def eig(self, tosorted=True):
+    def eig(self, bint tosorted=True):
         cdef unsigned int i,j,k, nsize, index
         cdef Matrix eigvect
         cdef double val
-
         if not self.isSimetric():
             eigvalue, eigvect = self.eigMPmath()
         else:
@@ -496,17 +511,16 @@ cdef class Matrix():
     def __add__(Matrix self, other):
         cdef unsigned int i
         cdef Matrix newMat
-        newMat = Matrix()
-
         if isinstance(other, Matrix):
             if (<Matrix>other)._cols != self._cols or (<Matrix>other)._rows != self._rows:
-                del newMat
                 raise ValueError("Dimmensions shoud be compatible")
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(self._rows * self._cols * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
             add(newMat._m, self._m, (<Matrix>other)._m, self._rows, self._cols)
         elif isinstance(other, (int, float)):
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(self._rows * self._cols * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
@@ -521,16 +535,16 @@ cdef class Matrix():
     def __sub__(Matrix self, other):
         cdef unsigned int i
         cdef Matrix newMat
-        newMat = Matrix()
         if isinstance(other, Matrix):
             if (<Matrix>other)._rows != self._rows or (<Matrix>other)._cols != self._cols:
-                del newMat
                 raise ValueError("Dimmensions shoud be compatible")
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(self._rows * self._cols * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
             sub(newMat._m, self._m, (<Matrix>other)._m, self._rows, self._cols)
         elif isinstance(other, (int, float)):
+            newMat = Matrix()
             for i in range(self._cols * self._rows):
                 newMat._m[i] = self._m[i] - other
         else:
@@ -569,10 +583,11 @@ cdef class Matrix():
         cdef unsigned int row, col, j
         cdef double value
         cdef Matrix newMat
-        newMat = Matrix()
+
         if isinstance(other, Matrix):
             if self.cols != other.rows:
                 raise ArithmeticError("The matrix dimmensions should be compatible")
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(other.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
@@ -581,6 +596,7 @@ cdef class Matrix():
             mult(newMat._m, self._m, self.rows, self.cols,
                  (<Matrix> other)._m, other.rows, other.cols)
         elif isinstance(other, (int, float)):
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(self.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
@@ -595,10 +611,10 @@ cdef class Matrix():
         cdef unsigned int row, col, j
         cdef double value
         cdef Matrix newMat
-        newMat = Matrix()
         if isinstance(other, Matrix):
             if self.cols != other.rows:
                 raise ArithmeticError("The matrix dimmensions should be compatible")
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(other.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
@@ -607,6 +623,7 @@ cdef class Matrix():
             mult(newMat._m, self._m, self.rows, self.cols,
                  (<Matrix> other)._m, other.rows, other.cols)
         elif isinstance(other, (int, float)):
+            newMat = Matrix()
             newMat._m = <double *> PyMem_Malloc(self.cols * self.rows * sizeof(double))
             if not newMat._m:
                 raise MemoryError()
@@ -670,8 +687,10 @@ cdef class Matrix():
                 else:
                     mat[k] = 0
                 k += 1
-        self.pushdata(rows, self._cols, mat)
-        PyMem_Free(mat)
+        if self._m != NULL:
+            PyMem_Free(self._m)
+            self._m = NULL
+        self._m = mat
 
     @property
     def cols(Matrix self):
@@ -692,8 +711,11 @@ cdef class Matrix():
                 else:
                     mat[k] = 0
                 k += 1
-        self.pushdata(self._rows, cols, mat)
-        PyMem_Free(mat)
+        if self._m != NULL:
+            PyMem_Free(self._m)
+            self._m = NULL
+        self._m = mat
+
 
     def isSimetric(Matrix self):
         cdef unsigned int row, col, rowm
@@ -714,8 +736,12 @@ cdef class Matrix():
         newMat._m = <double *> PyMem_Malloc(self._rows*self._cols*sizeof(double))
         if not newMat._m:
             raise MemoryError()
-        transpose(newMat._m, self._m, self._rows, self._cols)
-        return newMat
+        try:
+            transpose(newMat._m, self._m, self._rows, self._cols)
+            return newMat
+        except Exception as err:
+            del(newMat)
+            raise err
 
 
     def adjugate(Matrix self):
@@ -728,8 +754,12 @@ cdef class Matrix():
         newMat._m = <double *> PyMem_Malloc(self._rows*self._cols*sizeof(double))
         if not newMat._m:
             raise MemoryError()
-        adjugate(newMat._m, self._m, self._rows, self._cols)
-        return newMat
+        try:
+            adjugate(newMat._m, self._m, self._rows, self._cols)
+            return newMat
+        except Exception as err:
+            del(newMat)
+            raise err
 
     def determinant(Matrix self) -> float:
         return determinant(self._m, self._rows)
@@ -744,11 +774,57 @@ cdef class Matrix():
         newMat._m = <double *> PyMem_Malloc(self._rows*self._cols*sizeof(double))
         if not newMat._m:
             raise MemoryError()
-        inverse(newMat._m, self._m, self._rows, self._cols)
+        try:
+            inverse(newMat._m, self._m, self._rows, self._cols)
+            return newMat
+        except Exception as err:
+            del(newMat)
+            raise err
+
+    @staticmethod
+    cdef c_zeros(int row, int col):
+        "Returns zero matrix for row and col"
+        cdef int i
+        cdef Matrix newMat
+        if row <= 0 or col <= 0:
+            raise ValueError("Row and col should be different than zero")
+        newMat = Matrix()
+        newMat._m = <double *> PyMem_Malloc(row*col*sizeof(double))
+        if not newMat._m:
+            raise MemoryError()
+        for i in range(col*row):
+            newMat._m[i] = 0.0
+        newMat._rows = (<unsigned int>row)
+        newMat._cols = (<unsigned int>col)
         return newMat
 
+    @staticmethod
+    def zeros(int row, int col):
+        return Matrix.c_zeros(row, col)
 
+    @staticmethod
+    cdef c_identity(int n):
+        "Returns identity matrix"
+        cdef int i,j,k
+        cdef Matrix newMat
+        if n <= 0:
+            raise ValueError("Dimmension should be a positive integer")
+        newMat = Matrix()
+        newMat._m = <double *> PyMem_Malloc(n*n*sizeof(double))
+        if not newMat._m:
+            raise MemoryError()
+        k = 0
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    newMat._m[k] = 1.0
+                else:
+                    newMat._m[k] = 0.0
+                k += 1
+        newMat._rows = <unsigned int>n
+        newMat._cols = <unsigned int>n
+        return newMat
 
-
-
-
+    @staticmethod
+    def identiy(int n):
+        return Matrix.c_identity(n)

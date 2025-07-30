@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-from .AlgLine import Line
-from .AlgVector import Vector
 from .AlgMatrix import Matrix
-from .AlgPlane import Plane
+from .AlgVector import Vector
 from .AlgQuaternion import Quaternion
-from .AlgSegment import Segment
-from .AlgSurface import Surface
+from .AlgLine import Line
 from .AlgTransformation import Transformation
+from .AlgSegment import Segment
+from .AlgPlane import Plane
+from .AlgVector2D import Vector2D
 from .AlgWire import Wire
+from .AlgSurface import Surface
+from .ToolFiber import NeutralFiber

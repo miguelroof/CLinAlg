@@ -1,10 +1,12 @@
 import sys
-from operator import index
-
 from cpython.mem cimport PyMem_Malloc, PyMem_Free, PyMem_Realloc
-from libc.math cimport M_PI, fabs
+from libc.math cimport fabs
 from .AlgTool cimport presition
-from .cimport AlgVector, AlgWire, AlgSegment, AlgMatrix, AlgLine, AlgQuaternion
+from .AlgMatrix cimport Matrix
+from .AlgWire cimport IndexPerimeter
+from .AlgTransformation cimport Transformation
+from . cimport AlgVector, AlgWire, AlgSegment, AlgLine, AlgQuaternion
+
 
 cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer, double * axis):
     """
@@ -23,6 +25,8 @@ cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer, doub
     cdef int * itemp = <int *> PyMem_Malloc(numPer * sizeof(int))
     cdef list triangles = []
     try:
+        if ndir == NULL or pdir == NULL or vtemp == NULL or itemp == NULL:
+            raise MemoryError()
         npoints = numPer
         for j in range(npoints):
             itemp[j] = indPer[j]
@@ -75,10 +79,18 @@ cdef list tessellate(double * surfPoint, int * indPer, unsigned int numPer, doub
         triangles.extend([itemp[0], itemp[1], itemp[2]])
         return triangles
     finally:
-        PyMem_Free(ndir)
-        PyMem_Free(pdir)
-        PyMem_Free(vtemp)
-        PyMem_Free(itemp)
+        if ndir != NULL:
+            PyMem_Free(ndir)
+            ndir = NULL
+        if pdir != NULL:
+            PyMem_Free(pdir)
+            pdir = NULL
+        if vtemp != NULL:
+            PyMem_Free(vtemp)
+            vtemp = NULL
+        if itemp != NULL:
+            PyMem_Free(itemp)
+            itemp = NULL
 
 cdef void sortTrianglesByNormal(double * surfPoint, int * indTri, int numTri, double * direction):
     "Function that sort triangles for a given direction"
@@ -88,6 +100,8 @@ cdef void sortTrianglesByNormal(double * surfPoint, int * indTri, int numTri, do
     cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * v3 = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        if v1 == NULL or v2 == NULL or v3 == NULL:
+            raise MemoryError()
         for i in range(numTri):
             AlgVector.sub(v1, &surfPoint[indTri[i * 3 + 1] * 3], &surfPoint[indTri[i * 3] * 3])
             AlgVector.sub(v2, &surfPoint[indTri[i * 3 + 2] * 3], &surfPoint[indTri[i * 3] * 3])
@@ -98,9 +112,15 @@ cdef void sortTrianglesByNormal(double * surfPoint, int * indTri, int numTri, do
                 indTri[i * 3 + 1] = indTri[i * 3 + 2]
                 indTri[i * 3 + 2] = ptemp
     finally:
-        PyMem_Free(v1)
-        PyMem_Free(v2)
-        PyMem_Free(v3)
+        if v1 != NULL:
+            PyMem_Free(v1)
+            v1 = NULL
+        if v2 != NULL:
+            PyMem_Free(v2)
+            v2 = NULL
+        if v3 != NULL:
+            PyMem_Free(v3)
+            v3 = NULL
 
 cdef double getArea(Surface surf):
     """
@@ -114,6 +134,8 @@ cdef double getArea(Surface surf):
     cdef double * vCross = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef int i
     try:
+        if vAB == NULL or vAC == NULL or vCross == NULL:
+            raise MemoryError()
         for i in range(0, surf.indTri._ntriangle * 3, 3):
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
@@ -121,9 +143,15 @@ cdef double getArea(Surface surf):
             area += AlgVector.module(vCross) / 2
         return area
     finally:
-        PyMem_Free(vAB)
-        PyMem_Free(vAC)
-        PyMem_Free(vCross)
+        if vAB != NULL:
+            PyMem_Free(vAB)
+            vAB = NULL
+        if vAC != NULL:
+            PyMem_Free(vAC)
+            vAC = NULL
+        if vCross != NULL:
+            PyMem_Free(vCross)
+            vCross = NULL
 
 cdef void getCDG(double * cdg, Surface surf):
     """
@@ -137,8 +165,11 @@ cdef void getCDG(double * cdg, Surface surf):
     cdef double * vAC = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vCross = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double totalArea
-    totalArea = 0
+
     try:
+        totalArea = 0
+        if vAB == NULL or vAC == NULL or vCross == NULL:
+            raise MemoryError()
         for i in range(3):
             cdg[i] = 0
         for i in range(0, surf.indTri._ntriangle * 3, 3):
@@ -156,11 +187,17 @@ cdef void getCDG(double * cdg, Surface surf):
         for i in range(3):
             cdg[i] = cdg[i] / totalArea
     finally:
-        PyMem_Free(vAB)
-        PyMem_Free(vAC)
-        PyMem_Free(vCross)
+        if vAB != NULL:
+            PyMem_Free(vAB)
+            vAB = NULL
+        if vAC != NULL:
+            PyMem_Free(vAC)
+            vAC = NULL
+        if vCross != NULL:
+            PyMem_Free(vCross)
+            vCross = NULL
 
-cdef AlgMatrix.Matrix getInertia(Surface surf):
+cdef Matrix getInertia(Surface surf):
     """
     Returns inertia tensor of the given surface referenced to CDG in main axis
     :param surf: Surface object
@@ -168,13 +205,10 @@ cdef AlgMatrix.Matrix getInertia(Surface surf):
     """
     cdef int i, j, k
     cdef double alfa
-    cdef AlgMatrix.Matrix inertia = AlgMatrix.zeros(3, 3)
-    cdef AlgMatrix.Matrix V = AlgMatrix.zeros(3, 3)
-    cdef AlgMatrix.Matrix S = AlgMatrix.Matrix(
-        [[2.0 / 24, 1.0 / 24, 1.0 / 24], [1.0 / 24, 2.0 / 24, 1.0 / 24], [1.0 / 24, 1.0 / 24, 2.0 / 24]])
-    # cdef AlgMatrix.Matrix J = AlgMatrix.Matrix()
-    # cdef AlgMatrix.Matrix IDD = AlgMatrix.identity(3)
-    cdef AlgMatrix.Matrix C
+    cdef Matrix inertia
+    cdef Matrix V
+    cdef Matrix S
+    cdef Matrix C
     cdef double * v0
     cdef double * v1
     cdef double * v2
@@ -183,6 +217,13 @@ cdef AlgMatrix.Matrix getInertia(Surface surf):
     cdef double * vtemp3 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * pzero = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        inertia = Matrix.zeros(3,3)
+        V = Matrix.zeros(3,3)
+        S = Matrix(
+            [[2.0 / 24.0, 1.0 / 24.0, 1.0 / 24.0], [1.0 / 24.0, 2.0 / 24.0, 1.0 / 24.0],
+             [1.0 / 24.0, 1.0 / 24.0, 2.0 / 24.0]])
+        if vtemp1 == NULL or vtemp2 == NULL or vtemp3 == NULL or pzero == NULL:
+            raise MemoryError()
         pzero[0] = 0.0
         pzero[1] = 0.0
         pzero[2] = 0.0
@@ -212,10 +253,22 @@ cdef AlgMatrix.Matrix getInertia(Surface surf):
         inertia = stenierInGlobalAxis_p(inertia, surf.area(), pzero, (<AlgVector.Vector> surf.cdg())._v)
         return inertia
     finally:
-        PyMem_Free(vtemp1)
-        PyMem_Free(vtemp2)
-        PyMem_Free(vtemp3)
-        PyMem_Free(pzero)
+        v0 = NULL
+        v1 = NULL
+        v2 = NULL
+
+        if vtemp1 != NULL:
+            PyMem_Free(vtemp1)
+            vtemp1 = NULL
+        if vtemp2 != NULL:
+            PyMem_Free(vtemp2)
+            vtemp2 = NULL
+        if vtemp3 != NULL:
+            PyMem_Free(vtemp3)
+            vtemp3 = NULL
+        if pzero != NULL:
+            PyMem_Free(pzero)
+            pzero = NULL
 
 cdef double staticMoment(Surface surf, double * point, double * dir):
     """
@@ -232,6 +285,8 @@ cdef double staticMoment(Surface surf, double * point, double * dir):
     cdef double * vCross = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * cdg = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        if vAB == NULL or vAC == NULL or vCross == NULL or cdg == NULL:
+            raise MemoryError()
         for i in range(0, surf.indTri._ntriangle * 3, 3):
             for j in range(3):
                 cdg[j] = sum([surf.vectMat._m[surf.indTri._m[i + k] * 3 + j] for k in range(3)]) / 3.0
@@ -243,10 +298,18 @@ cdef double staticMoment(Surface surf, double * point, double * dir):
             mom += area * dist
         return mom
     finally:
-        PyMem_Free(vAB)
-        PyMem_Free(vAC)
-        PyMem_Free(vCross)
-        PyMem_Free(cdg)
+        if vAB != NULL:
+            PyMem_Free(vAB)
+            vAB = NULL
+        if vAC != NULL:
+            PyMem_Free(vAC)
+            vAC = NULL
+        if vCross != NULL:
+            PyMem_Free(vCross)
+            vCross = NULL
+        if cdg != NULL:
+            PyMem_Free(cdg)
+            cdg = NULL
 
 cdef bint isInside(Surface surf, double * point, bint incEdge):
     """
@@ -264,15 +327,19 @@ cdef bint isInside(Surface surf, double * point, bint incEdge):
     cdef int i, j
     cdef bint isin
     try:
+        if vAB == NULL or vAC == NULL or vCross == NULL:
+            raise MemoryError()
         for i in range(0, surf.indTri._ntriangle * 3, 3):
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 2] * 3], &surf.vectMat._m[surf.indTri._m[i] * 3])
             AlgVector.cross(vCross, vAB, vAC)
             area = AlgVector.module(vCross)  # El area es la mitad, pero siempre usare el doble
             if area < presition * presition:
-                AlgVector.sub(vAB, point, &surf.vectMat._m[surf.indTri._m[i] * 3])
-                if AlgVector.module(vAB) < presition and incEdge:
+                # pudiera estar entre los dos valores
+                if AlgSegment.isInside(&surf.vectMat._m[surf.indTri._m[i] * 3], &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point, incEdge):
                     return True
+                else:
+                    continue
             AlgVector.sub(vAB, &surf.vectMat._m[surf.indTri._m[i] * 3], point)
             AlgVector.sub(vAC, &surf.vectMat._m[surf.indTri._m[i + 1] * 3], point)
             AlgVector.cross(vCross, vAB, vAC)
@@ -300,9 +367,15 @@ cdef bint isInside(Surface surf, double * point, bint incEdge):
             return True
         return False
     finally:
-        PyMem_Free(vAB)
-        PyMem_Free(vAC)
-        PyMem_Free(vCross)
+        if vAB != NULL:
+            PyMem_Free(vAB)
+            vAB = NULL
+        if vAC != NULL:
+            PyMem_Free(vAC)
+            vAC = NULL
+        if vCross != NULL:
+            PyMem_Free(vCross)
+            vCross = NULL
 
 # cdef bint isInside2(Surface surf, double * point, bint incEdge):
 #     """
@@ -360,10 +433,13 @@ cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint 
     cdef bint sclosed
     cdef double * dirMIn = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * dirMOut = <double *> PyMem_Malloc(3 * sizeof(double))
-    wireInd = surf.indPer.__serialize__()
-    n = <int> (len(wireInd))
-    sclosed = True
+
     try:
+        if ipoint == NULL or tpoint == NULL or dirMIn == NULL or dirMOut == NULL:
+            raise MemoryError()
+        wireInd = surf.indPer.__serialize__()
+        n = <int> (len(wireInd))
+        sclosed = True
         cortes = []
         indices = []
         for i in range(n - 1):
@@ -378,11 +454,11 @@ cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint 
                 continue
             if (incEdge or (not AlgVector.isEqual(ipoint, &surf.vectMat._m[pc * 3])
                             and not AlgVector.isEqual(ipoint, &surf.vectMat._m[pn * 3]))):
-                newVect = AlgVector.Vector(None)
-                (<AlgVector.Vector> newVect)._v = ipoint
+                newVect = AlgVector.Vector(ipoint[0], ipoint[1], ipoint[2])
+                # (<AlgVector.Vector> newVect)._v = ipoint
                 cortes.append(newVect)
                 indices.append(i)
-                ipoint = <double *> PyMem_Malloc(3 * sizeof(double))
+                # ipoint = <double *> PyMem_Malloc(3 * sizeof(double))
                 continue
             if AlgVector.isEqual(ipoint, &surf.vectMat._m[pc * 3]):  # punto inicial
                 if i == 0:
@@ -412,18 +488,26 @@ cdef tuple dictIntersectByLine(Surface surf, double * point, double * dir, bint 
                 raise ValueError('No es posible esta combinacion')
             if AlgSegment.getIntersectionPointWithLine(tpoint, dirMIn, dirMOut, point,
                                                        dir, <bint> False):
-                newVect = AlgVector.Vector(None)
-                (<AlgVector.Vector> newVect)._v = ipoint
+                newVect = AlgVector.Vector(ipoint[0], ipoint[1], ipoint[2])
+                # (<AlgVector.Vector> newVect)._v = ipoint
                 cortes.append(newVect)
                 indices.append(i)
-                ipoint = <double *> PyMem_Malloc(3 * sizeof(double))
+                # ipoint = <double *> PyMem_Malloc(3 * sizeof(double))
                 continue
         return indices, cortes
     finally:
-        PyMem_Free(dirMIn)
-        PyMem_Free(dirMOut)
-        PyMem_Free(tpoint)
-        PyMem_Free(ipoint)
+        if dirMIn != NULL:
+            PyMem_Free(dirMIn)
+            dirMIn = NULL
+        if dirMOut != NULL:
+            PyMem_Free(dirMOut)
+            dirMOut = NULL
+        if tpoint != NULL:
+            PyMem_Free(tpoint)
+            tpoint = NULL
+        if ipoint != NULL:
+            PyMem_Free(ipoint)
+            ipoint = NULL
 
 cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int * indexTriangle, double * linepnt,
                               double * linedir):
@@ -432,7 +516,7 @@ cdef int _splitTriangleByLine(double * v1, double * v2, double * wirePoint, int 
     # -5 implica que
     cdef int cut1 = 0
     cdef int cut2 = 0
-    cdef AlgSegment.PhantomSegment seg
+    # cdef AlgSegment.PhantomSegment seg
     for i in range(2):
         if AlgLine.isInside(linepnt, linedir, &wirePoint[indexTriangle[i] * 3]):
             for j in range(i+1,3):
@@ -551,57 +635,56 @@ cdef list _getEdgeByTriangleIndex(list indTri):
 #     outerList.append(outerIndex)
 #     return outerList
 
-cdef list _getSurfaceByTriangleIndex(list triIndex):
-    "Function that search compatibility between triangles"
-    cdef dict laterales = {}
-    cdef dict triangulos = {}
-    cdef int numTri = <int> len(triIndex) // 3
-    cdef int pa, pb, pc, itri, i, j
-    cdef list surfaces, surf, psurf, listTri
-    cdef bint founded
-    for i in range(numTri):
-        pa, pb, pc = list(sorted([triIndex[i * 3 + j] for j in range(3)]))
-        triangulos[i] = [(pa, pb), (pa, pc), (pb, pc)]
-        laterales[(pa, pb)] = laterales.get((pa, pb), []) + [i]
-        laterales[(pa, pc)] = laterales.get((pa, pc), []) + [i]
-        laterales[(pb, pc)] = laterales.get((pb, pc), []) + [i]
-    surfaces = []
-    listTri = list(range(numTri))
-    surf = [listTri.pop(0)]
-    psurf = [triIndex[surf[0] * 3 + j] for j in range(3)]
-    while True:
-        i = 0
-        while i < len(listTri):
-            founded = False
-            itri = listTri[i]
-            for lat in triangulos[itri]:
-                for stri in laterales[lat]:
-                    if itri != stri and stri in surf:
-                        surf.append(itri)
-                        psurf.extend([triIndex[itri * 3 + j] for j in range(3)])
-                        listTri.pop(i)
-                        founded = True
-                        break
-                if founded:
-                    break
-            if not founded:
-                i += 1
-            else:
-                i = 0
-        surfaces.append(psurf)
-        if listTri:
-            surf = [listTri.pop(0)]
-            psurf = [triIndex[surf[0] * 3 + j] for j in range(3)]
-        else:
-            break
-    return surfaces
+# cdef list _getSurfaceByTriangleIndex(list triIndex):
+#     "Function that search compatibility between triangles"
+#     cdef dict laterales = {}
+#     cdef dict triangulos = {}
+#     cdef int numTri = <int> len(triIndex) // 3
+#     cdef int pa, pb, pc, itri, i, j
+#     cdef list surfaces, surf, psurf, listTri
+#     cdef bint founded
+#     for i in range(numTri):
+#         pa, pb, pc = list(sorted([triIndex[i * 3 + j] for j in range(3)]))
+#         triangulos[i] = [(pa, pb), (pa, pc), (pb, pc)]
+#         laterales[(pa, pb)] = laterales.get((pa, pb), []) + [i]
+#         laterales[(pa, pc)] = laterales.get((pa, pc), []) + [i]
+#         laterales[(pb, pc)] = laterales.get((pb, pc), []) + [i]
+#     surfaces = []
+#     listTri = list(range(numTri))
+#     surf = [listTri.pop(0)]
+#     psurf = [triIndex[surf[0] * 3 + j] for j in range(3)]
+#     while True:
+#         i = 0
+#         while i < len(listTri):
+#             founded = False
+#             itri = listTri[i]
+#             for lat in triangulos[itri]:
+#                 for stri in laterales[lat]:
+#                     if itri != stri and stri in surf:
+#                         surf.append(itri)
+#                         psurf.extend([triIndex[itri * 3 + j] for j in range(3)])
+#                         listTri.pop(i)
+#                         founded = True
+#                         break
+#                 if founded:
+#                     break
+#             if not founded:
+#                 i += 1
+#             else:
+#                 i = 0
+#         surfaces.append(psurf)
+#         if listTri:
+#             surf = [listTri.pop(0)]
+#             psurf = [triIndex[surf[0] * 3 + j] for j in range(3)]
+#         else:
+#             break
+#     return surfaces
 
 cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
     "returns a list of surfaces returned from split"
     cdef double * v1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * normal = <double *> PyMem_Malloc(3 * sizeof(double))
-    # cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vpos = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * vtemp1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef int vcorte
@@ -624,6 +707,8 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
             triIndexLeft.extend([surf.indTri._m[x] if x >= 0 else x for x in list_2])
             triIndexRight.extend([surf.indTri._m[x] if x >= 0 else x for x in list_1])
     try:
+        if v1 == NULL or v2 == NULL or normal == NULL or vpos == NULL or vtemp1 == NULL:
+            raise MemoryError()
         # la normal sera la noral de uno de los triangulos
         AlgVector.sub(v1, &surf.vectMat._m[surf.indTri._m[1] * 3], &surf.vectMat._m[surf.indTri._m[0] * 3])
         AlgVector.sub(v2, &surf.vectMat._m[surf.indTri._m[2] * 3], &surf.vectMat._m[surf.indTri._m[0] * 3])
@@ -631,7 +716,10 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
         vposit = AlgVector.module(normal)
         for i in range(3):
             normal[i] = normal[i] / vposit
-
+        phc0 = AlgVector.PhantomVector()
+        phc0._v = v1
+        phc1 = AlgVector.PhantomVector()
+        phc1._v = v2
         AlgVector.cross(vpos, normal, linedir)
         for itri in range(0, surf.indTri._ntriangle * 3, 3):
             vcorte = _splitTriangleByLine(v1, v2, surf.vectMat._m, &surf.indTri._m[itri], linepnt, linedir)
@@ -643,29 +731,25 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
             # vcorte = -5: corta por 1 in entre 0-2
             # vorte = -6: corta por 2 in entre 0-1
             if vcorte > 0:
-                phc0 = AlgVector.PhantomVector()
-                phc0._v = v1
+                # phc0._v = v1
                 if not phc0 in cut_point:
                     cut_point.append(phc0.copy())
                     phc0_index = -len(cut_point)
                 else:
                     phc0_index = -(cut_point.index(phc0)+1)
-                phc1 = AlgVector.PhantomVector()
-                phc1._v = v2
+                # phc1._v = v2
                 if not phc1 in cut_point:
                     cut_point.append(phc1.copy())
                     phc1_index = -len(cut_point)
                 else:
                     phc1_index = -(cut_point.index(phc1)+1)
-
             elif vcorte < 0:
-                phc0 = AlgVector.PhantomVector()
-                phc0._v = v2
-                if not phc0 in cut_point:
-                    cut_point.append(phc0.copy())
+                # phc1._v = v2
+                if not phc1 in cut_point:
+                    cut_point.append(phc1.copy())
                     phc0_index = -len(cut_point)
                 else:
-                    phc0_index = -(cut_point.index(phc0) + 1)
+                    phc0_index = -(cut_point.index(phc1) + 1)
                 phc1_index = 0
 
             if vcorte == -3:
@@ -734,12 +818,21 @@ cdef list splitByLine(Surface surf, double * linepnt, double * linedir):
 
 
     finally:
-        PyMem_Free(v1)
-        PyMem_Free(v2)
-        PyMem_Free(normal)
-        # PyMem_Free(subnormal)
-        PyMem_Free(vpos)
-        PyMem_Free(vtemp1)
+        if v1 != NULL:
+            PyMem_Free(v1)
+            v1 = NULL
+        if v2 != NULL:
+            PyMem_Free(v2)
+            v2 = NULL
+        if normal != NULL:
+            PyMem_Free(normal)
+            normal = NULL
+        if vpos != NULL:
+            PyMem_Free(vpos)
+            vpos = NULL
+        if vtemp1 != NULL:
+            PyMem_Free(vtemp1)
+            vtemp1 = NULL
 
 cdef (double, double, double, double) boundRectangle(Surface surf, int v1, int v2):
     """
@@ -779,11 +872,15 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
        numpy array 3x3 with the transformed tensor of inertia
        """
     cdef double modulo
-    cdef AlgMatrix.Matrix r = AlgMatrix.Matrix()
-    cdef AlgMatrix.Matrix mident = AlgMatrix.identity(3)
+    cdef Matrix r
+    cdef Matrix mident
     cdef Matrix J
     cdef double * vdir = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        if vdir == NULL:
+            raise MemoryError()
+        mident = Matrix.identity(3)
+        r = Matrix()
         r._rows = 3
         r._cols = 3
         r._m = <double *> PyMem_Malloc(9 * sizeof(double))
@@ -805,7 +902,9 @@ cdef Matrix stenierInGlobalAxis_p(Matrix I, double area, double * cdg, double * 
         J = I - mident
         return J
     finally:
-        PyMem_Free(vdir)
+        if vdir != NULL:
+            PyMem_Free(vdir)
+            vdir = NULL
 
 cdef int _sign(double v):
     return 1 if v >= -presition else -1
@@ -883,8 +982,8 @@ cdef list _triangularize(double tn, double tp, list tlist, double bn, double bp,
             ibn += 1
     return triIndex
 
-cdef double _sortkey(tuple v):
-    return v[1]
+# cdef double _sortkey(tuple v):
+#     return v[1]
 
 cpdef Surface trapezeToSurfaceYZ(list trapeces):
     "Function that convert trapeze list [[h 0, bs 1, bi 2, es 3, ei 4, sym 5]... ] into surface object. The trapezes will be defined from upper to lower"
@@ -897,11 +996,11 @@ cpdef Surface trapezeToSurfaceYZ(list trapeces):
     cdef double * vtemp1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * normal = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * subnormal = <double *> PyMem_Malloc(3 * sizeof(double))
-    cdef AlgWire.IndexPerimeter indPer = AlgWire.IndexPerimeter()
+    # cdef AlgWire.IndexPerimeter indPer = AlgWire.IndexPerimeter()
     cdef Surface newSurf
-    if not vtemp1 or not normal or not subnormal:
-        raise MemoryError()
     try:
+        if not vtemp1 or not normal or not subnormal:
+            raise MemoryError()
         i = 0
         h = 0.0
         trapMod = []
@@ -1014,38 +1113,21 @@ cpdef Surface trapezeToSurfaceYZ(list trapeces):
         newSurf.indTri.setList([replDict[i] for i in triIndex])
         sortTrianglesByNormal(newSurf.vectMat._m, newSurf.indTri._m, newSurf.indTri._ntriangle, normal)
         tPerimIndex = _getEdgeByTriangleIndex([replDict[i] for i in triIndex])
-        # print('tPerimIndex', tPerimIndex)
         newSurf.indPer.setList(tPerimIndex)
-        # perimIndex = []
-        # tPerimIndex = _getPerimeterByTriangleIndex(tsurf)
-        # # ordeno los perimetros de izquierda a derecha. El que tenga el valor mas a la izquierda sera necesariamente
-        # tPerimIndex = list(zip(tPerimIndex, [min([pointList[y][1] for y in tPerim]) for tPerim in tPerimIndex]))
-        # tPerimIndex = [x[0] for x in sorted(tPerimIndex, key=_sortkey)]
-        # i = 0
-        # while tPerimIndex:
-        #     tPerim = [replDict[j] for j in tPerimIndex.pop(0)]
-        #     indPer.setList(tPerim)
-        #     AlgWire.getNormal(vtemp1, newSurf.vectMat._m, indPer._m, indPer._npoint)
-        #     if i == 0:
-        #         if not AlgVector.isEqual(vtemp1, normal):
-        #             tPerim = list(reversed(tPerim))
-        #         i += 1
-        #     else:
-        #         if not AlgVector.isEqual(vtemp1, subnormal):
-        #             tPerim = list(reversed(tPerim))
-        #     perimIndex.extend(tPerim)
-        #     if tPerimIndex:
-        #         perimIndex.append(-1)
-        # newSurf.indPer.setList(perimIndex)
-        # surfaces.append(newSurf)
         return newSurf
     except Exception as err:
-        print(err)
-        raise
+        # print(err)
+        raise err
     finally:
-        PyMem_Free(vtemp1)
-        PyMem_Free(normal)
-        PyMem_Free(subnormal)
+        if vtemp1 != NULL:
+            PyMem_Free(vtemp1)
+            vtemp1 = NULL
+        if normal != NULL:
+            PyMem_Free(normal)
+            normal = NULL
+        if subnormal != NULL:
+            PyMem_Free(subnormal)
+            subnormal = NULL
 
 cpdef tuple mainAxisInertia(Matrix tensor):
     """Returns Inertia in main axis.
@@ -1063,7 +1145,7 @@ cpdef tuple mainAxisInertia(Matrix tensor):
     return eig, rot.transpose()
 
 cdef class EdgeIterator():
-    def __init__(self, vectMat: AlgMatrix.Matrix, indPer: AlgWire.IndexPerimeter):
+    def __init__(self, vectMat: Matrix, indPer: AlgWire.IndexPerimeter):
         self.vectMat = vectMat
         self.indPer = indPer
 
@@ -1123,22 +1205,24 @@ cdef class EdgeIterator():
 
 cdef class IndexTriangle():
     "Objeto simple para los indices del triangulo de una superficie"
-    def __cinit__(self, data=None):
+    def __init__(self, data=None):
         if data:
             self.setList(data)
 
     def __dealloc__(self):
-        PyMem_Free(self._m)
+        if self._m:
+            # print("Borrado indextriangle")
+            PyMem_Free(self._m)
+            self._m = NULL
 
     cpdef void setList(IndexTriangle self, list data):
         cdef int i
-        if self._m:
-            mem = <int *> PyMem_Realloc(self._m, len(data) * sizeof(int))
+        if self._m != NULL:
+            self._m = <int *> PyMem_Realloc(self._m, len(data) * sizeof(int))
         else:
-            mem = <int *> PyMem_Malloc(len(data) * sizeof(int))
-        if not mem:
+            self._m = <int *> PyMem_Malloc(len(data) * sizeof(int))
+        if not self._m:
             raise MemoryError()
-        self._m = mem
         self._ntriangle = <unsigned int> (len(data) // 3)
         for i in range(3 * self._ntriangle):
             self._m[i] = <int> (data[i])
@@ -1154,7 +1238,7 @@ cdef class IndexTriangle():
         return self._ntriangle
 
     def __json__(self):
-        return {'__jsoncls__': 'CLinAlg.AlgSurface:MatrixTriangle.from_JSON', 'data': self.__serialize__()}
+        return {'__jsoncls__': 'CLinAlg.AlgSurface:IndexTriangle.from_JSON', 'data': self.__serialize__()}
 
     @classmethod
     def from_JSON(cls, jsondict):
@@ -1163,7 +1247,6 @@ cdef class IndexTriangle():
 
 cdef class Surface():
     def __cinit__(self, *args, **kwargs):
-        cdef unsigned int i, j
         self.vectMat = Matrix()
         self.indTri = IndexTriangle()
         self.indPer = IndexPerimeter()  # contiene -1 para separar los distintos edges.
@@ -1187,7 +1270,6 @@ cdef class Surface():
                     for j in range(3):
                         self.vectMat._m[i * 3 + j] = pointList[i][j]
             elif isinstance(pointList, Matrix):
-
                 numpoints = (<Matrix> pointList)._rows
                 if AlgVector.isEqual(&(<Matrix> pointList)._m[0], &(<Matrix> pointList)._m[(numpoints - 1) * 3]):
                     numpoints -= 1
@@ -1204,9 +1286,15 @@ cdef class Surface():
                 for i in range(1, <int> self.vectMat._rows):
                     indPer.extend([i - 1, i, -1])
                 indPer.extend([self.vectMat._rows - 1, 0, -1])
+                self.indPer.setList(indPer)
             else:
-                indPer = kwargs['indPer']
-            self.indPer.setList(indPer)
+                if isinstance(kwargs['indPer'], (list, tuple)):
+                    self.indPer.setList(kwargs['indPer'])
+                elif isinstance(kwargs['indPer'], IndexPerimeter):
+                    self.indPer.setList(kwargs['indPer'].__serialize__())
+
+                else:
+                    raise RuntimeError('indPer')
 
             if kwargs.get('indTri') is None:
                 twire = AlgWire.Wire()
@@ -1219,7 +1307,10 @@ cdef class Surface():
                 self.indTri.setList(tlist)
                 sortTrianglesByNormal(self.vectMat._m, self.indTri._m, self.indTri._ntriangle, normal._v)
             else:
-                self.indTri.setList(kwargs['indTri'])
+                if isinstance(kwargs['indTri'], (list, tuple)):
+                    self.indTri.setList(kwargs['indTri'])
+                elif isinstance(self.indTri, IndexTriangle):
+                    self.indTri.setList(kwargs['indTri'].__serialize__())
 
     def __dealloc__(self):
         pass  #no hago nada, ya se encaragarn los objetos constituyentes de borrarse
@@ -1230,10 +1321,7 @@ cdef class Surface():
 
     @classmethod
     def from_JSON(cls, jsondict):
-        obj = cls()
-        obj.vectMat = jsondict['mat']
-        obj.indTri = jsondict['indTri']
-        obj.indPer = jsondict['indPer']
+        obj = cls(jsondict['mat'], indTri=jsondict['indTri'], indPer=jsondict['indPer'])
         return obj
 
     @property
@@ -1340,16 +1428,23 @@ cdef class Surface():
 
     def getRotate(self, center: AlgVector.Vector, axis: AlgVector.Vector, angle: float):
         cdef double * quat = <double *> PyMem_Malloc(4 * sizeof(double))
-        cdef Surface newSurface = Surface()
-        newSurface.vectMat._m = <double *> PyMem_Malloc(3 * self.vectMat._rows * sizeof(double))
-        newSurface.vectMat._rows = self.vectMat._rows
-        newSurface.vectMat._cols = 3
-        AlgQuaternion.quatFromAxisAngle(quat, axis._v, angle)
-        AlgQuaternion.rotateVectorMatrix(newSurface.vectMat._m, quat, center._v, self.vectMat._m, self.vectMat._rows)
-        newSurface.indTri.setList(self.indTri.__serialize__())
-        newSurface.indPer.setList(self.indPer.__serialize__())
-        PyMem_Free(quat)
-        return newSurface
+        cdef Surface newSurface
+        try:
+            if quat == NULL:
+                raise MemoryError()
+            newSurface = Surface()
+            newSurface.vectMat._m = <double *> PyMem_Malloc(3 * self.vectMat._rows * sizeof(double))
+            newSurface.vectMat._rows = self.vectMat._rows
+            newSurface.vectMat._cols = 3
+            AlgQuaternion.quatFromAxisAngle(quat, axis._v, angle)
+            AlgQuaternion.rotateVectorMatrix(newSurface.vectMat._m, quat, center._v, self.vectMat._m, self.vectMat._rows)
+            newSurface.indTri.setList(self.indTri.__serialize__())
+            newSurface.indPer.setList(self.indPer.__serialize__())
+            return newSurface
+        finally:
+            if quat != NULL:
+                PyMem_Free(quat)
+                quat = NULL
 
     def getTranslate(self, translateVector: AlgVector.Vector):
         """
@@ -1432,12 +1527,23 @@ cdef class Surface():
     def normal(Surface self):
         cdef double * v1 = <double *> PyMem_Malloc(3 * sizeof(double))
         cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
-        cdef AlgVector.Vector normal = AlgVector.Vector()
-        AlgVector.sub(v1, &self.vectMat._m[self.indTri._m[1] * 3], &self.vectMat._m[self.indTri._m[0] * 3])
-        AlgVector.sub(v2, &self.vectMat._m[self.indTri._m[2] * 3], &self.vectMat._m[self.indTri._m[0] * 3])
-        AlgVector.cross(normal._v, v1, v2)
-        normal.normalize()
-        return normal
+        cdef AlgVector.Vector normal
+        try:
+            if v1 == NULL or v2 == NULL:
+                raise MemoryError()
+            normal = AlgVector.Vector()
+            AlgVector.sub(v1, &self.vectMat._m[self.indTri._m[1] * 3], &self.vectMat._m[self.indTri._m[0] * 3])
+            AlgVector.sub(v2, &self.vectMat._m[self.indTri._m[2] * 3], &self.vectMat._m[self.indTri._m[0] * 3])
+            AlgVector.cross(normal._v, v1, v2)
+            normal.normalize()
+            return normal
+        finally:
+            if v1 != NULL:
+                PyMem_Free(v1)
+                v1 = NULL
+            if v2 != NULL:
+                PyMem_Free(v2)
+                v2 = NULL
 
     def invertOrientation(Surface self):
         "Function that invert current orientation for surface"
@@ -1454,17 +1560,57 @@ cdef class Surface():
         return self.copy()
 
     def __repr__(self):
-        cdg: AlgVector.Vector = self.cdg()
-        return "Surface(Area=%.2f; Perimeter=%.2f; CDG=(%.2f,%.2f,%.2f))" % (
-            self.area(), self.perimeter(), cdg.x, cdg.y, cdg.z)
+        return f"Surface(Area={self.area():.2f}; Perimeter={self.perimeter():.2f}; CDG={self.cdg()})"
 
-    def __repr__(self):
-        cdg: AlgVector.Vector = self.cdg()
-        return "Surface(Area=%.2f; Perimeter=%.2f; CDG=(%.2f,%.2f,%.2f))" % (
-            self.area(), self.perimeter(), cdg.x, cdg.y, cdg.z)
+    def __str__(self):
+        return f"Surface(Area={self.area():.2f}; Perimeter={self.perimeter():.2f}; CDG={self.cdg()})"
 
     def indexTriangles(self):
         return self.indTri.__serialize__()
 
     def indexPerimeter(self):
         return self.indPer.__serialize__()
+
+    def simplified(self, tolerance=0.1):
+        "Function that cleans surface if points already exists in table"
+        points = list(self.Point)
+        points_dict = {}
+        new_point_list = []
+        for i, p in enumerate(points):
+            founded = False
+            for j in range(len(new_point_list)):
+                if new_point_list[j].distance(p) < tolerance:
+                    points_dict[i] = j
+                    founded = True
+                    break
+            if not founded:
+                points_dict[i] = len(new_point_list)
+                new_point_list.append(p)
+        perimeter_list = self.indexPerimeter()
+        subperimeter_list = []
+        i = 0
+        while i < len(perimeter_list):
+            sub_sub = []
+            while perimeter_list[i] != -1:
+                sub_sub.append(points_dict[perimeter_list[i]])
+                i += 1
+            i += 1
+            if all([sub_sub[j] == sub_sub[0] for j in range(1, len(sub_sub))]):
+                continue
+            subperimeter_list.append(sub_sub)
+        final_subperimeter = []
+        for sub_sub in subperimeter_list:
+            final_subperimeter.extend(sub_sub)
+            final_subperimeter.append(-1)
+        triangles_list = self.indexTriangles()
+        final_triangles = []
+        i = 0
+        while i < len(triangles_list):
+            tri = [points_dict[x] for x in triangles_list[i: i + 3]]
+            if tri[0] in tri[1:] or tri[1] == tri[2]:
+                i += 3
+                continue
+            final_triangles.extend(tri)
+            i += 3
+        surface = Surface(new_point_list, indPer=final_subperimeter, indTri=final_triangles)
+        return surface

@@ -1,35 +1,9 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from .AlgQuaternion cimport fromRotationMatrix
+from .AlgQuaternion cimport Quaternion, fromRotationMatrix
+from .AlgTool cimport presition
 from . cimport AlgMatrix
 
-cpdef Transformation fromRotTrans(Quaternion quat, Vector vect):
-    cdef Matrix m
-    cdef int i, j
-    cdef Transformation newTransform
-    newTransform = Transformation()
-    m = quat.c_getRotationMatrix()
-    for i in range(3):
-        for j in range(3):
-            newTransform._mat.c_set(i, j, m.c_get(i, j))
-    for i in range(3):
-        newTransform._mat.c_set(i, 3, vect._v[i])
-        newTransform._mat.c_set(3, i, 0)
-    newTransform._mat.c_set(3, 3, 1)
-    del m
-    return newTransform
 
-cpdef Transformation fromPointAndAxis(Vector pos, Vector axisX, Vector axisY):
-    cdef Vector axisZ = axisX % axisY
-    cdef unsigned int i
-    cdef Transformation newTransform = Transformation()
-    for i in range(3):
-        newTransform._mat._m[i] = axisX._v[i]
-        newTransform._mat._m[i+4] = axisY._v[i]
-        newTransform._mat._m[i+8] = axisZ._v[i]
-        newTransform._mat._m[3+i*4] = pos._v[i]
-        newTransform._mat._m[12+i] = 0
-    newTransform._mat._m[15] = 1
-    return newTransform
 
 cdef class Transformation():
     def __cinit__(self, matrix4x4=None):
@@ -50,18 +24,23 @@ cdef class Transformation():
                 raise ValueError("The matrix size should be 4x4")
             for i in range(16):
                 self._mat._m[i] = (<Matrix> matrix4x4)._m[i]
+        else:
+            self.setIdentity()
 
     def __dealloc__(self):
         pass
-
 
     #...........................C.....................................
     cdef Transformation c_inverse(Transformation self):
         # create inverse of self transforamtion
         cdef Transformation newTransform
         newTransform = Transformation()
-        AlgMatrix.inverse(newTransform._mat._m, self._mat._m, 4, 4)
-        return newTransform
+        try:
+            AlgMatrix.inverse(newTransform._mat._m, self._mat._m, 4, 4)
+            return newTransform
+        except Exception as err:
+            del(newTransform)
+            raise err
 
     def inverse(Transformation self):
         return self.c_inverse()
@@ -130,27 +109,38 @@ cdef class Transformation():
 
 
     cpdef Transformation copy(Transformation self, bint withRotation, bint withTranslation):
+        cdef Transformation new_transform
         if withRotation and withTranslation:
-            return Transformation(self)
+            new_transform = Transformation(self)
         elif withRotation:
             m = self._mat.copy()
             m.c_set(0, 3, 0)
             m.c_set(1, 3, 0)
             m.c_set(2, 3, 0)
-            return Transformation(m)
+            new_transform = Transformation(m)
+            del(m)
         elif withTranslation:
-            m = AlgMatrix.identity(4)
+            m = AlgMatrix.Matrix.identity(4)
             for i in range(3):
                 m.c_set(i, 3, self._mat.c_get(i, 3))
-            return Transformation(m)
+            new_transform = Transformation(m)
+            del(m)
         else:
-            trans = Transformation()
-            trans.setIdentity()
-            return trans
+            new_transform = Transformation()
+            new_transform.setIdentity()
+        return new_transform
 
     @property
     def mat(Transformation self):
         return self._mat
+
+    @staticmethod
+    def fromRotTrans(Quaternion quat, Vector v):
+        return fromRotTrans(quat, v)
+
+    @staticmethod
+    def fromPointAndAxis(Vector point, Vector axis_x, Vector axis_y):
+        return fromPointAndAxis(point, axis_x, axis_y)
 
     def __mul__(Transformation self, other):
         cdef Transformation newTransform
@@ -162,19 +152,26 @@ cdef class Transformation():
         elif isinstance(other, Vector):
             return self.c_transformVector((<Vector> other))
         else:
+            del newTransform
             raise ValueError("Multiplication for transformation not implemented")
 
     def __truediv__(Transformation self, Transformation other):
         cdef Transformation newTransform
-        cdef double * inversed
-        newTransform = Transformation()
+        cdef double * inversed = <double *> PyMem_Malloc(16 * sizeof(double))
         try:
-            inversed = <double *> PyMem_Malloc(16 * sizeof(double))
+            if inversed == NULL:
+                raise MemoryError()
+            newTransform = Transformation()
             AlgMatrix.inverse(inversed, other._mat._m, 4, 4)
             AlgMatrix.mult(newTransform._mat._m, self._mat._m, 4, 4, inversed, 4, 4)
             return newTransform
+        except Exception as err:
+            del newTransform
+            raise err
         finally:
-            PyMem_Free(inversed)
+            if inversed != NULL:
+                PyMem_Free(inversed)
+                inversed = NULL
 
     def __add__(Transformation self, Transformation other):
         return self * other
@@ -192,3 +189,34 @@ cdef class Transformation():
     def from_JSON(cls, jsondict):
         obj = cls(jsondict['mat'])
         return obj
+
+cdef Transformation fromRotTrans(Quaternion quat, Vector vect):
+    cdef Matrix m
+    cdef int i, j
+    cdef Transformation newTransform
+    newTransform = Transformation()
+    m = quat.c_getRotationMatrix()
+    for i in range(3):
+        for j in range(3):
+            newTransform._mat.c_set(i, j, m.c_get(i, j))
+    for i in range(3):
+        newTransform._mat.c_set(i, 3, vect._v[i])
+        newTransform._mat.c_set(3, i, 0)
+    newTransform._mat.c_set(3, 3, 1)
+    del m
+    return newTransform
+
+cdef Transformation fromPointAndAxis(Vector pos, Vector axis_x, Vector axis_y):
+    cdef Vector axis_z = axis_x % axis_y
+    if axis_z.module < presition:
+        raise RuntimeError("Axis X and Axis Y should be different")
+    cdef unsigned int i
+    cdef Transformation newTransform = Transformation()
+    for i in range(3):
+        newTransform._mat._m[i] = axis_x._v[i]
+        newTransform._mat._m[i+4] = axis_y._v[i]
+        newTransform._mat._m[i+8] = axis_z._v[i]
+        newTransform._mat._m[3+i*4] = pos._v[i]
+        newTransform._mat._m[12+i] = 0
+    newTransform._mat._m[15] = 1
+    return newTransform

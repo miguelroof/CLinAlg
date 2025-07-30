@@ -1,6 +1,5 @@
 from .AlgMatrix cimport Matrix
 from .AlgVector cimport Vector
-from .AlgTool cimport presition
 
 cdef void quatFromAxisAngle(double * toquat, double * axis, double angle)
 
@@ -18,9 +17,9 @@ cdef double module(double * q)
 
 cdef void rotateVectorMatrix(double * toPointer, double * q, double * center, double * mat, unsigned int numvect)
 
-cpdef Quaternion fromRotationMatrix(Matrix m)
+cdef Quaternion fromRotationMatrix(Matrix m)
 
-cpdef Quaternion fromEulerAngles(double R, double P, double Y)
+cdef Quaternion fromEulerAngles(double R, double P, double Y)
 
 cdef class Quaternion():
     cdef double * _q

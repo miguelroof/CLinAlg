@@ -1,6 +1,6 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport fabs
-from .cimport AlgVector, AlgLine
+from . cimport AlgVector, AlgLine
 from .AlgTool cimport presition
 
 cdef bint isInside(double * pini, double * pfin, double * point, bint incEdge):
@@ -29,9 +29,11 @@ cdef void  getNearestPoint(double * toPoint, double * pini, double * pfin, doubl
     cdef double angle
     cdef unsigned int i
     cdef double * cdir = <double *> PyMem_Malloc(3 * sizeof(double))
-    AlgLine.projectedPoint(toPoint, pini, cdir, point)
-    AlgVector.sub(cdir, pfin, pini)
     try:
+        if cdir == NULL:
+            raise MemoryError()
+        AlgLine.projectedPoint(toPoint, pini, cdir, point)
+        AlgVector.sub(cdir, pfin, pini)
         if isInside(pini, pfin, toPoint, (<bint> True)):
             return
         else:
@@ -42,28 +44,35 @@ cdef void  getNearestPoint(double * toPoint, double * pini, double * pfin, doubl
                 for i in range(3):
                     toPoint[i] = pfin[i]
     finally:
-        PyMem_Free(cdir)
+        if cdir != NULL:
+            PyMem_Free(cdir)
+            cdir = NULL
 
 cdef bint getIntersectionPointWithLine(double * toPoint, double * pini, double * pfin,
                                        double * lpnt, double * ldir, bint incEdge):
-    # las lineas no pueden ser paralelas
     cdef double * cdir = <double *> PyMem_Malloc(3 * sizeof(double))
-    AlgVector.sub(cdir, pfin, pini)
     try:
+        if cdir == NULL:
+            raise MemoryError()
+        AlgVector.vdir(cdir, pini, pfin)
         if AlgLine.getIntersectionPoint(toPoint, pini, cdir, lpnt, ldir) and isInside(pini, pfin, toPoint, <bint> True):
             return True
         else:
             return False
     finally:
-        PyMem_Free(cdir)
+        if cdir != NULL:
+            PyMem_Free(cdir)
+            cdir = NULL
 
 cdef bint getIntersectionPointWithSegment(double * toPoint, double * pini1, double * pfin1,
                                           double * pini2, double * pfin2, bint incEdge):
     cdef double * cdir1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * cdir2 = <double *> PyMem_Malloc(3 * sizeof(double))
-    AlgVector.vdir(cdir1, pini1, pfin1)
-    AlgVector.vdir(cdir2, pini2, pfin2)
     try:
+        if cdir1 == NULL or cdir2 == NULL:
+            raise MemoryError()
+        AlgVector.vdir(cdir1, pini1, pfin1)
+        AlgVector.vdir(cdir2, pini2, pfin2)
         if AlgLine.getIntersectionPoint(toPoint, pini1, cdir1, pini2, cdir2) and isInside(pini1, pfin1, toPoint,
                                                                                           <bint> True) and isInside(
                 pini2, pfin2,
@@ -73,10 +82,31 @@ cdef bint getIntersectionPointWithSegment(double * toPoint, double * pini1, doub
         else:
             return False
     finally:
-        PyMem_Free(cdir1)
-        PyMem_Free(cdir2)
+        if cdir1 != NULL:
+            PyMem_Free(cdir1)
+            cdir1 = NULL
+        if cdir2 != NULL:
+            PyMem_Free(cdir2)
+            cdir2 = NULL
 
 cdef class PhantomSegment():
+    def __cinit__(self):
+        self._vini = NULL
+        self._vfin = NULL
+        self._ref_object = None
+
+    def __dealloc__(self):
+        if self._ref_object:
+            # print("Elimino referencia a segmento")
+            self._ref_object = None
+        if self._vini != NULL:
+            self._vini = NULL
+        if self._vfin != NULL:
+            self._vfin = NULL
+
+    def set_ref_object(self, object):
+        self._ref_object = object
+
     @property
     def pini(self):
         cdef AlgVector.PhantomVector v = AlgVector.PhantomVector()
@@ -105,8 +135,6 @@ cdef class PhantomSegment():
 
     def line(self):
         cdef AlgLine.Line newLine = AlgLine.Line(self.pini, self.pfin)
-        #AlgVector.copy(newLine._pnt, self._vini)
-        #AlgVector.vdir(newLine._dir, self._vini, self._vfin)
         return newLine
 
     def isInside(self, point: AlgVector.Vector, incEdge=True):
@@ -114,8 +142,12 @@ cdef class PhantomSegment():
 
     def getNearestPoint(self, point: AlgVector.Vector):
         cdef AlgVector.Vector newVect = AlgVector.Vector()
-        getNearestPoint(newVect._v, self._vini, self._vfin, point._v)
-        return newVect
+        try:
+            getNearestPoint(newVect._v, self._vini, self._vfin, point._v)
+            return newVect
+        except Exception as err:
+            del newVect
+            raise err
 
     def getIntersectionPoint(self, other, incEdge=True):
         cdef AlgVector.Vector newVect = AlgVector.Vector()
@@ -125,6 +157,7 @@ cdef class PhantomSegment():
                                             <bint> incEdge):
                 return newVect
             else:
+                del newVect
                 return None
         elif isinstance(other, Segment):
             if getIntersectionPointWithSegment(newVect._v, self._vini, self._vfin,
@@ -132,15 +165,20 @@ cdef class PhantomSegment():
                                                (<Segment> other)._vfin, <bint> incEdge):
                 return newVect
             else:
+                del newVect
                 return None
 
     def isIntersect(self, other: PhantomSegment, incEdge=True):
         cdef double * ipoint = <double *> PyMem_Malloc(3 * sizeof(double))
         try:
+            if ipoint == NULL:
+                raise MemoryError()
             return getIntersectionPointWithSegment(ipoint, self._vini, self._vfin, (<Segment> other)._vini,
                                                    (<Segment> other)._vfin, <bint> incEdge)
         finally:
-            PyMem_Free(ipoint)
+            if ipoint != NULL:
+                PyMem_Free(ipoint)
+                ipoint = NULL
 
     def length(self):
         return AlgVector.distance(self._vini, self._vfin)
@@ -169,7 +207,7 @@ cdef class PhantomSegment():
 
 cdef class Segment(PhantomSegment):
     def __cinit__(self, *args, **kwargs):
-        if args == (None):
+        if len(args) == 1 and args[0] is None:
             pass
         else:
             self._vini = <double *> PyMem_Malloc(3 * sizeof(double))
@@ -181,10 +219,18 @@ cdef class Segment(PhantomSegment):
             for i in range(3):
                 self._vini[i] = args[0][i]
                 self._vfin[i] = args[1][i]
+        elif len(args) == 1 and args[0] is None:
+            pass
+        else:
+            raise NotImplementedError("Not valid this argument for creating segment")
 
     def __dealloc__(self):
-        PyMem_Free(self._vini)
-        PyMem_Free(self._vfin)
+        if self._vini:
+            PyMem_Free(self._vini)
+            self._vini = NULL
+        if self._vfin:
+            PyMem_Free(self._vfin)
+            self._vfin = NULL
 
     def __json__(self):
         cdef unsigned int i

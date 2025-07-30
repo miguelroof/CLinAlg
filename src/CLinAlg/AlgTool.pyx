@@ -1,11 +1,12 @@
+cdef double M_PI = 3.141592653589793238
 
-presition = 1e-6
+cdef double presition = 1e-6
 
-cpdef double getPresition():
+cpdef float getPresition():
     global presition
-    return presition
+    return <float>presition
 
-cpdef void setPresition(double presval):
+cpdef void setPresition(float presval):
     global presition
-    presition = presval
+    presition = <double>presval
 

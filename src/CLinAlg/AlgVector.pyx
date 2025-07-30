@@ -1,6 +1,7 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from libc.math cimport sqrt, M_PI, acos, sin, cos, fabs
-from .AlgTool cimport presition
+from libc.math cimport sqrt, acos, sin, cos, fabs
+from .AlgTool cimport presition, M_PI
+
 
 cdef void vdir(double * todouble, double * pini, double * pfin):
     cdef double modulo
@@ -10,6 +11,8 @@ cdef void vdir(double * todouble, double * pini, double * pfin):
     if modulo:
         for i in range(3):
             todouble[i] = todouble[i] / modulo
+    else:
+        raise ArithmeticError("Module for direction cannot be zero")
 
 cdef void add(double * todouble, double * v1, double * v2):
     todouble[0] = v1[0] + v2[0]
@@ -26,6 +29,8 @@ cdef double dot(double * v1, double * v2):
     return val
 
 cdef double module(double * v):
+    if v == NULL:
+        raise RuntimeError("v is NULL")
     return sqrt(dot(v, v))
 
 cdef double angle(double * v1, double * v2):
@@ -34,7 +39,8 @@ cdef double angle(double * v1, double * v2):
     if fabs(x) > presition:
         x = x / (module(v1) * module(v2))
     else:
-        return M_PI * 0.5
+        x = M_PI * 0.5
+        return x
     if x < -1: x = -2 - x
     if x > 1: x = 2 - x
     return acos(x)
@@ -81,9 +87,28 @@ cdef void project(double * todouble, double * v1, double * v2):
 
 cdef class PhantomVector():
 
+
+    def __cinit__(self):
+        self._v = NULL
+        self._ref_object = None
+
+    def __dealloc__(self):
+        if self._ref_object:
+            # print("Elimino referencia en vector")
+            self._ref_object = None
+
+        if self._v != NULL:
+            self._v = NULL
+
+    def set_ref_object(self, object):
+        self._ref_object = object
+
     @property
     def module(self) -> float:
-        return module(self._v)
+        if self._v:
+            return module(self._v)
+        else:
+            raise RuntimeError("PhantomVector not initialized")
 
     @module.setter
     def module(PhantomVector self, float value):
@@ -142,6 +167,8 @@ cdef class PhantomVector():
         cdef double axismodule
         uvectv = <double *> PyMem_Malloc(3 * sizeof(double))
         try:
+            if uvectv == NULL:
+                raise MemoryError()
             axismodule = module(axis._v)
             sinangle = sin(angle * 0.5)
             cosangle = cos(angle * 0.5)
@@ -154,7 +181,9 @@ cdef class PhantomVector():
                 u._v[i] = 2 * uv * u._v[i] + (cosangle * cosangle - uu) * v._v[i] + 2 * cosangle * uvectv[i]
             return u
         finally:
-            PyMem_Free(uvectv)
+            if uvectv != NULL:
+                PyMem_Free(uvectv)
+                uvectv = NULL
 
     def project(PhantomVector v1, PhantomVector v2):
         "project one Vector onto the second"
@@ -162,9 +191,15 @@ cdef class PhantomVector():
         project(newVect._v, v1._v, v2._v)
         return newVect
 
-    def toList(PhantomVector self) -> list:
+    def __serialize__(PhantomVector self) -> list:
         cdef unsigned int i
         return [self._v[i] for i in range(3)]
+
+    def toList(PhantomVector self) -> list:
+        return self.__serialize__()
+
+    def pythonized(PhantomVector self) -> list:
+        return self.__serialize__()
 
     def toTuple(PhantomVector self) -> tuple:
         return (self._v[0], self._v[1], self._v[2])
@@ -285,7 +320,7 @@ cdef class PhantomVector():
 
 cdef class Vector(PhantomVector):
     def __cinit__(self, *coord, **kwargs):
-        if coord == (None):
+        if len(coord) == 1 and coord[0] is None:
             pass
         else:
             self._v = <double *> PyMem_Malloc(3 * sizeof(double))
@@ -314,7 +349,11 @@ cdef class Vector(PhantomVector):
             raise NotImplementedError("You cannot initialize a vector with %d arguments" % len(coord))
 
     def __dealloc__(self):
-        PyMem_Free(self._v)
+        if self._v:
+            # print("Borrado de Vector %s" % str(toTuple(self._v)))
+            PyMem_Free(self._v)
+            self._v = NULL
+
 
     def __json__(self):
         return {'__jsoncls__': 'CLinAlg.AlgVector:Vector.from_JSON', 'vector': (self._v[0], self._v[1], self._v[2])}

@@ -1,5 +1,6 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from libc.math cimport sqrt, sin, cos, acos, atan2, asin
+from .AlgTool cimport presition
 from . cimport AlgVector
 
 
@@ -64,6 +65,8 @@ cdef void rotateVectorMatrix(double * tomat, double * q, double * center, double
     try:
         uuu = <double *> PyMem_Malloc(3 * sizeof(double))
         uvv = <double *> PyMem_Malloc(3 * sizeof(double))
+        if uuu == NULL or uvv == NULL:
+            raise MemoryError()
         dotuu = q[0] * q[0] - AlgVector.dot(&q[1], &q[1])
         for i in range(numvect):
             dotuv = 0
@@ -74,16 +77,20 @@ cdef void rotateVectorMatrix(double * tomat, double * q, double * center, double
             for j in range(3):
                 tomat[j + i * 3] = 2 * dotuv * q[j + 1] + dotuu * uuu[j] + 2 * q[0] * uvv[j] + center[j]
     finally:
-        PyMem_Free(uvv)
-        PyMem_Free(uuu)
+        if uvv != NULL:
+            PyMem_Free(uvv)
+            uvv = NULL
+        if uuu != NULL:
+            PyMem_Free(uuu)
+            uuu = NULL
 
-cpdef Quaternion fromRotationMatrix(Matrix m):
-    cdef Quaternion nq = Quaternion()
+cdef Quaternion fromRotationMatrix(Matrix m):
+    cdef Quaternion nq
     cdef double tr, S, qmod
     cdef unsigned int i
     if not m._rows == 3 and m._cols == 3:
-        del nq
         raise ValueError("Matrix should be 3x3")
+    nq = Quaternion()
     tr = m._m[0] + m._m[4] + m._m[8]
     if tr > 0:
         S = sqrt(1 + tr) * 2
@@ -114,7 +121,7 @@ cpdef Quaternion fromRotationMatrix(Matrix m):
         nq._q[i] = nq._q[i] / qmod
     return nq
 
-cpdef Quaternion fromEulerAngles(double R, double P, double Y):
+cdef Quaternion fromEulerAngles(double R, double P, double Y):
     cdef double t0, t1, t2, t3, t4, t5
     cdef Quaternion quat = Quaternion()
     t0 = cos(Y * 0.5)
@@ -152,7 +159,10 @@ cdef class Quaternion():
             self._q[3] = 0
 
     def __dealloc__(Quaternion self):
-        PyMem_Free(self._q)
+        if self._q:
+            # print("BORRADO DE QUATERNION %s" % str(self.toList()))
+            PyMem_Free(self._q)
+            self._q = NULL
 
     def __json__(Quaternion self):
         return {'__jsoncls__': 'CLinAlg.AlgQuaternion:Quaternion.from_JSON', 'q': self.toList()}
@@ -179,12 +189,6 @@ cdef class Quaternion():
             axis._v[2] = self._q[3] / factor
         return axis
 
-    def getAxis(Quaternion self):
-        return self.c_getAxis()
-
-    def getAngle(Quaternion self) -> double:
-        return 2 * acos(self._q[0])
-
     cdef Matrix c_getRotationMatrix(Quaternion self):
         cdef Matrix mm = Matrix()
         mm._rows = 3
@@ -201,9 +205,6 @@ cdef class Quaternion():
         mm._m[8] = 1 - 2 * self._q[1] * self._q[1] - 2 * self._q[2] * self._q[2]
         return mm
 
-    def getRotationMatrix(Quaternion self):
-        return self.c_getRotationMatrix()
-
     cdef void c_rotateVector_p(Quaternion self, double * topointer, double * vpointer):
         "Funcion auxiliar para rotar punteros"
         cdef double * u
@@ -213,6 +214,8 @@ cdef class Quaternion():
         try:
             u = <double *> PyMem_Malloc(3 * sizeof(double))
             uvv = <double *> PyMem_Malloc(3 * sizeof(double))
+            if u == NULL or uvv == NULL:
+                raise MemoryError()
             u[0] = self._q[1]
             u[1] = self._q[2]
             u[2] = self._q[3]
@@ -223,13 +226,12 @@ cdef class Quaternion():
                 topointer[i] = 2 * dotuv * u[i] + (self._q[0] * self._q[0] - dotuu) * vpointer[i] + 2 * self._q[0] * \
                                uvv[i]
         finally:
-            PyMem_Free(u)
-            PyMem_Free(uvv)
-
-    def rotateVector(Quaternion self, v: Vector):
-        cdef Vector newVector = Vector()
-        self.c_rotateVector_p(newVector._v, v._v)
-        return newVector
+            if u != NULL:
+                PyMem_Free(u)
+                u = NULL
+            if uvv != NULL:
+                PyMem_Free(uvv)
+                uvv = NULL
 
     cdef (double, double, double) c_eulerAngles(Quaternion self):
         cdef double t0, t1, roll, pitch, yaw
@@ -246,6 +248,27 @@ cdef class Quaternion():
         t1 = 1 - 2 * (self._q[2] * self._q[2] + self._q[3] * self._q[3])
         yaw = atan2(t0, t1)
         return roll, pitch, yaw
+    #........................pmethods.............................
+
+    def getRotationMatrix(Quaternion self):
+        return self.c_getRotationMatrix()
+
+    def getAxis(Quaternion self):
+        return self.c_getAxis()
+
+    def getAngle(Quaternion self) -> float:
+        return 2 * acos(self._q[0])
+
+
+    def rotateVector(Quaternion self, v: Vector):
+        cdef Vector newVector = Vector()
+        try:
+            self.c_rotateVector_p(newVector._v, v._v)
+            return newVector
+        except Exception as err:
+            del(newVector)
+            raise err
+
 
     def eulerAngles(Quaternion self):
         return self.c_eulerAngles()
@@ -258,6 +281,8 @@ cdef class Quaternion():
         cdef Quaternion newQuat = Quaternion()
         cdef unsigned int i
         qmod = module(self._q)
+        if qmod < presition:
+            return newQuat
         for i in range(4):
             newQuat._q[i] = self._q[i] / qmod
         return newQuat
@@ -271,8 +296,19 @@ cdef class Quaternion():
         cdef double qmod
         qmod = module(self._q)
         qmod = qmod * qmod
-        newQuat = Quaternion(self._q[0]/qmod, -self._q[1]/qmod, -self._q[2]/qmod, -self._q[3]/qmod)
+        if qmod < presition:
+            newQuat = Quaternion()
+        else:
+            newQuat = Quaternion(self._q[0]/qmod, -self._q[1]/qmod, -self._q[2]/qmod, -self._q[3]/qmod)
         return newQuat
+
+    @staticmethod
+    def fromEulerAngles(float roll, float pitch, float yaw):
+        return fromEulerAngles(<double>roll, <double>pitch, <double>yaw)
+
+    @staticmethod
+    def fromRotationMatrix(Matrix m):
+        return fromRotationMatrix(m)
 
     def __mod__(Quaternion self, other:Quaternion):
         cdef Quaternion newQuat = Quaternion()
@@ -280,12 +316,12 @@ cdef class Quaternion():
         return newQuat
 
     def __mul__(Quaternion self, other):
-        cdef Quaternion newQuat = Quaternion()
+        cdef Quaternion newQuat
         cdef unsigned int i
         if isinstance(other, Quaternion):
-            del newQuat
             return dot(self._q, (<Quaternion>other)._q)
         elif isinstance(other, (int, float)):
+            newQuat = Quaternion()
             for i in range(4):
                 newQuat._q[i] = self._q[i] * other
             return newQuat
@@ -322,9 +358,15 @@ cdef class Quaternion():
     def __str__(Quaternion self):
         return 'Quaternion' + str(self.toList())
 
-    def toList(Quaternion self):
+    def __serialize__(Quaternion self):
         cdef unsigned int i
         return [self._q[i] for i in range(4)]
+
+    def toList(Quaternion self) -> list:
+        return self.__serialize__()
+
+    def pythonized(Quaternion self) -> list:
+        return self.__serialize__()
 
     @property
     def w(Quaternion self):

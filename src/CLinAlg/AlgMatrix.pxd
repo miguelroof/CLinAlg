@@ -24,9 +24,6 @@ cdef void add(double * tomat, double * mat1, double * mat2, unsigned int rows, u
 
 cdef void sub(double * tomat, double * mat1, double * mat2, unsigned int rows, unsigned int cols)
 
-cpdef Matrix zeros(int row, int col)
-
-cpdef Matrix identity(int n)
 
 cdef bint hasLine(double * mat, unsigned int rows, unsigned int cols, double * vector, bint byRows)
 
@@ -35,11 +32,14 @@ cdef class Matrix:
     cdef double * _m
     cdef void c_set(self, int row, int col, double data)
     cdef double c_get(self,int row, int col)
-    cdef pushdata(Matrix self, unsigned int rows,unsigned int cols, double * datalist)
+    cdef void pushdata(Matrix self, unsigned int rows,unsigned int cols, double * datalist)
     cpdef void deleteRow(Matrix self, unsigned int row)
     cpdef void deleteColumn(Matrix self, unsigned int col)
     cpdef Matrix copy(Matrix self)
     cpdef Matrix transpose(Matrix self)
-
+    @staticmethod
+    cdef c_zeros(int row, int col)
+    @staticmethod
+    cdef c_identity(int n)
 
 

@@ -1,8 +1,10 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from .cimport AlgVector
-from .AlgTool cimport presition
+from libc.math cimport fabs
+from . cimport AlgVector
+from .AlgTool cimport presition, M_PI
 from .AlgVector cimport Vector, PhantomVector
-from libc.math cimport M_PI, fabs
+
+
 
 cdef void projectedPoint(double * toPointer, double * pnt, double * dir, double * fromPoint):
     cdef double val
@@ -13,25 +15,34 @@ cdef void projectedPoint(double * toPointer, double * pnt, double * dir, double 
 
 cdef double distanceToPoint(double * pnt, double * dir, double * point):
     cdef double * projpoint = <double *> PyMem_Malloc(3 * sizeof(double))
-
     try:
+        if projpoint == NULL:
+            raise MemoryError()
         projectedPoint(projpoint, pnt, dir, point)
         return AlgVector.distance(projpoint, point)
     finally:
-        PyMem_Free(projpoint)
+        if projpoint != NULL:
+            PyMem_Free(projpoint)
+            projpoint = NULL
 
 cdef bint isInside(double * pnt, double * dir, double * point):
     cdef double * v1 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * v2 = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double modulo
     try:
+        if v1 == NULL or v2 == NULL:
+            raise MemoryError()
         AlgVector.sub(v1, point, pnt)
         AlgVector.cross(v2, v1, dir)
         modulo = AlgVector.module(v2)
         return modulo <= presition
     finally:
-        PyMem_Free(v1)
-        PyMem_Free(v2)
+        if v1 != NULL:
+            PyMem_Free(v1)
+            v1 = NULL
+        if v2 != NULL:
+            PyMem_Free(v2)
+            v2 = NULL
 
 cdef bint isPerpendicular(double * pnt1, double * dir1, double * pnt2, double * dir2):
     cdef double angle
@@ -101,6 +112,23 @@ cdef (bint, double) getParameter(double * pnt, double * dir, double * point):
     #.............................C METHODS..........................................................from
 
 cdef class PhantomLine():
+    def __cinit__(self):
+        self._pnt = NULL
+        self._dir = NULL
+        self._ref_object = None
+
+    def __dealloc__(self):
+        if self._ref_object:
+            # print("Elimino referencia en linea")
+            self._ref_object = None
+        if self._pnt:
+            self._pnt = NULL
+        if self._dir:
+            self._dir = NULL
+
+    def set_ref_object(self, object):
+        self._ref_object = object
+
     # .............................PYTHON METHODS.............................................................
     @property
     def point(self):
@@ -117,12 +145,6 @@ cdef class PhantomLine():
 
     @property
     def direction(self):
-        # if False:
-        #     cdef AlgVector.Vector vector_dir
-        #     vector_dir = AlgVector.Vector()
-        #     AlgVector.copy(vector_dir._v, self._dir)
-        #     return vector_dir
-        # else:
         cdef AlgVector.PhantomVector vv = AlgVector.PhantomVector()
         vv._ref_object = self
         vv._v = self._dir
@@ -132,9 +154,11 @@ cdef class PhantomLine():
     def direction(self, direction: Vector):
         cdef double modulo = AlgVector.module(direction._v)
         cdef unsigned int i
-        if modulo:
+        if modulo > presition:
             for i in range(3):
                 self._dir[i] = direction._v[i]/modulo
+        else:
+            raise RuntimeError("Direction vector should have module greater than 0")
 
 
     def projectedPoint(self, point: PhantomVector):
@@ -172,6 +196,7 @@ cdef class PhantomLine():
     def getIntersectionPoint(self, other: PhantomLine):
         cdef Vector newVect = Vector()
         if not getIntersectionPoint(newVect._v, self._pnt, self._dir, other._pnt, other._dir):
+            del(newVect)
             return None
         return newVect
 
@@ -195,7 +220,7 @@ cdef class PhantomLine():
 cdef class Line(PhantomLine):
     def __cinit__(self, *args, **kwargs):
         cdef unsigned int i
-        if len(args) != 1 or len(args) == 1 and args[0] != None:
+        if len(args) != 1 or (len(args) == 1 and args[0] != None):
             self._pnt = <double *> PyMem_Malloc(3 * sizeof(double))
             self._dir = <double *> PyMem_Malloc(3 * sizeof(double))
 
@@ -212,12 +237,23 @@ cdef class Line(PhantomLine):
             elif args[0] is None:  # no hago reserva de memoria
                 pass
         elif len(args) == 2 and isinstance(args[0], PhantomVector) and isinstance(args[1], PhantomVector):
+            if args[0].distance(args[1]) < presition:
+                PyMem_Free(self._pnt)
+                self._pnt = NULL
+                PyMem_Free(self._dir)
+                self._dir = NULL
+                raise RuntimeError("The two points for create a line should be different")
             AlgVector.copy(self._pnt, (<PhantomVector> args[0])._v)
             AlgVector.vdir(self._dir, (<PhantomVector> args[0])._v, (<PhantomVector> args[1])._v)
 
     def __dealloc__(Line self):
-        PyMem_Free(self._pnt)
-        PyMem_Free(self._dir)
+        # print("BORRADO DE LINEA %s" % self.__str__())
+        if self._pnt:
+            PyMem_Free(self._pnt)
+            self._pnt = NULL
+        if self._dir:
+            PyMem_Free(self._dir)
+            self._dir = NULL
 
     def __json__(Line self) -> dict:
         return {'__jsoncls__': 'CLinAlg.AlgLine:Line.from_JSON', 'pnt': AlgVector.toTuple(self._pnt),

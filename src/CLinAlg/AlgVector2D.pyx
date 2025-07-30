@@ -1,6 +1,8 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from libc.math cimport sqrt, M_PI, acos, sin, cos, fabs
-from .AlgTool cimport presition
+from libc.math cimport sqrt, acos, sin, cos, fabs
+from .AlgTool cimport presition, M_PI
+
+
 
 cdef void add(double * todouble, double * v1, double * v2):
     todouble[0] = v1[0] + v2[0]
@@ -17,6 +19,8 @@ cdef double cross(double * v1, double * v2):
     return v1[0] * v2[1] - v1[1] * v2[0]
 
 cdef double module(double * v):
+    if v == NULL:
+        raise RuntimeError("Pointer to vector cannot be NULL")
     return sqrt(dot(v, v))
 
 cdef void vdir(double * todouble, double * pini, double * pfin):
@@ -62,9 +66,27 @@ cdef void project(double * todouble, double * v1, double * v2):
     todouble[1] = v2[1] * v1v2
 
 cdef class PhantomVector2D():
+
+    def __cinit__(self):
+        self._v = NULL
+        self._ref_object = None
+
+    def __dealloc__(self):
+        if self._ref_object:
+            # print("Elimino referencia en vector2D")
+            self._ref_object = None
+        if self._v != NULL:
+            self._v = NULL
+
+    def set_ref_object(self, object):
+        self._ref_object = object
+
     @property
     def module(self) -> float:
-        return module(self._v)
+        if self._v != NULL:
+            return module(self._v)
+        else:
+            raise RuntimeError("PhantomVector2D not initialized")
 
     @module.setter
     def module(PhantomVector2D self, float value):
@@ -130,9 +152,15 @@ cdef class PhantomVector2D():
         project(newVect._v, v1._v, v2._v)
         return newVect
 
-    def toList(PhantomVector2D self) -> list:
+    def __serialize__(PhantomVector2D self) -> list:
         cdef unsigned int i
         return [self._v[i] for i in range(2)]
+
+    def toList(PhantomVector2D self) -> list:
+        return self.__serialize__()
+
+    def pythonized(PhantomVector2D self) -> list:
+        return self.__serialize__()
 
     def toTuple(PhantomVector2D self) -> tuple:
         return (self._v[0], self._v[1])
@@ -238,7 +266,7 @@ cdef class PhantomVector2D():
 
 cdef class Vector2D(PhantomVector2D):
     def __cinit__(self, *coord, **kwargs):
-        if coord == (None):
+        if len(coord) == 1 and coord[0] is None:
             pass
         else:
             self._v = <double *> PyMem_Malloc(2 * sizeof(double))
@@ -264,7 +292,9 @@ cdef class Vector2D(PhantomVector2D):
             raise NotImplementedError("You cannot initialize a vector with %d arguments" % len(coord))
 
     def __dealloc__(self):
-        PyMem_Free(self._v)
+        if self._v:
+            PyMem_Free(self._v)
+            self._v = NULL
 
     def __json__(self):
         return {'__jsoncls__': 'CLinAlg.AlgVector:Vector2D.from_JSON', 'vector': (self._v[0], self._v[1])}

@@ -15,9 +15,10 @@ cdef void getParametricPoint(double * toPoint, double * pnt, double * dir, doubl
 
 cdef (bint, double) getParameter(double * pnt, double * dir, double * point)
 
-cdef class PhantomLine():
+cdef class PhantomLine:
     cdef double * _pnt
     cdef double * _dir
+    cdef object _ref_object
 
 cdef class Line(PhantomLine):
     pass

@@ -1,23 +1,30 @@
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from libc.math cimport M_PI, cos
-from .AlgTool cimport presition
+from libc.math cimport cos
+from .AlgTool cimport presition, M_PI
 from .AlgMatrix cimport Matrix
 from . cimport AlgVector
 from .AlgVector cimport Vector
 
+
 cdef double offsetToPoint(Plane plane, double * p, double * direction):
     cdef double * punto = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        if punto == NULL:
+            raise MemoryError()
         AlgVector.sub(punto, plane._pos, p)
         return AlgVector.dot(direction, punto)
     finally:
-        PyMem_Free(punto)
+        if punto != NULL:
+            PyMem_Free(punto)
+            punto = NULL
         
 cdef void  getLocalCoords(double * toPoint, Plane plane, double * point):
     cdef double x, y, z, angle
     cdef double * pt = <double *> PyMem_Malloc(3 * sizeof(double))
     cdef double * xv = <double *> PyMem_Malloc(3 * sizeof(double))
     try:
+        if pt == NULL or xv == NULL:
+            raise MemoryError()
         AlgVector.sub(pt, point, plane._pos)
         AlgVector.project(xv, pt, plane._u)
         x = AlgVector.module(xv)
@@ -38,8 +45,12 @@ cdef void  getLocalCoords(double * toPoint, Plane plane, double * point):
         toPoint[1] = y
         toPoint[2] = z
     finally:
-        PyMem_Free(pt)
-        PyMem_Free(xv)
+        if pt != NULL:
+            PyMem_Free(pt)
+            pt = NULL
+        if xv != NULL:
+            PyMem_Free(xv)
+            xv = NULL
         
 cdef void getGlobalCoords(double * toPoint, Plane plane, double * point):
     cdef unsigned int i
@@ -57,6 +68,8 @@ cdef void projectPoint(double * toPoint, Plane plane, double * point, double * d
     # dist = vx*nx + vy*ny + vz*nz
     # projected_point = point - dist*n  donde n es la normal. Esta proyeccion da el punto en 3d"""
     try:
+        if vproj == NULL or lp == NULL or gp == NULL:
+            raise MemoryError()
         dirmod = AlgVector.module(direction)
         getLocalCoords(lp, plane, point)
         lp[2] = 0.0
@@ -74,9 +87,15 @@ cdef void projectPoint(double * toPoint, Plane plane, double * point, double * d
                 toPoint[i] = point[i] + direction[i] * hyp / dirmod
     finally:
         # noinspection PyTypeChecker
-        PyMem_Free(vproj)
-        PyMem_Free(lp)
-        PyMem_Free(gp)
+        if vproj != NULL:
+            PyMem_Free(vproj)
+            vproj = NULL
+        if lp != NULL:
+            PyMem_Free(lp)
+            lp = NULL
+        if gp != NULL:
+            PyMem_Free(gp)
+            gp = NULL
 
 cdef bint isInside(Plane plane, double * point):
     cdef unsigned int i
@@ -96,30 +115,47 @@ cdef class Plane:
     '''A plane with local axis'''
 
     def __cinit__(self, u:Vector, v:Vector, axis:Vector, pos:Vector):
-        cdef unsigned int i
-        cdef double vmod
         # print("he creado un Plano")
         self._u = <double *> PyMem_Malloc(3 * sizeof(double))
         self._v = <double *> PyMem_Malloc(3 * sizeof(double))
         self._axis = <double *> PyMem_Malloc(3 * sizeof(double))
         self._pos = <double *> PyMem_Malloc(3 * sizeof(double))
+
+    def __init__(self, u:Vector, v:Vector, axis:Vector, pos:Vector):
+        cdef unsigned int i
+        cdef double vmod
         vmod = AlgVector.module(u._v)
+        if vmod < presition:
+            raise RuntimeError("U vector for plane cannot be zero")
         for i in range(3):
             self._u[i] = u._v[i] / vmod
         vmod = AlgVector.module(v._v)
+        if vmod < presition:
+            raise RuntimeError("V vector for plane cannot be zero")
         for i in range(3):
             self._v[i] = v._v[i] / vmod
         vmod = AlgVector.module(axis._v)
+        if vmod < presition:
+            raise RuntimeError("Axis vector for plane cannot be zero")
         for i in range(3):
             self._axis[i] = axis._v[i] / vmod
         for i in range(3):
             self._pos[i] = pos._v[i]
+
             
     def __dealloc__(self):
-        PyMem_Free(self._u)
-        PyMem_Free(self._v)
-        PyMem_Free(self._axis)
-        PyMem_Free(self._pos)
+        if self._u:
+            PyMem_Free(self._u)
+            self._u = NULL
+        if self._v:
+            PyMem_Free(self._v)
+            self._v = NULL
+        if self._axis:
+            PyMem_Free(self._axis)
+            self._axis = NULL
+        if self._pos:
+            PyMem_Free(self._pos)
+            self._pos = NULL
 
     #..................C METHODS................................
     
@@ -160,6 +196,8 @@ cdef class Plane:
         cdef unsigned int i
         cdef double vmod
         vmod = AlgVector.module(u._v)
+        if vmod < presition:
+            raise RuntimeError("u vector cannot be zero")
         for i in range(3):
             self._u[i] = u._v[i] / vmod
 
@@ -175,6 +213,8 @@ cdef class Plane:
         cdef unsigned int i
         cdef double vmod
         vmod = AlgVector.module(v._v)
+        if vmod < presition:
+            raise RuntimeError("v vector cannot be zero")
         for i in range(3):
             self._v[i] = v._v[i] / vmod
 
@@ -190,6 +230,8 @@ cdef class Plane:
         cdef unsigned int i
         cdef double vmod
         vmod = AlgVector.module(axis._v)
+        if vmod < presition:
+            raise RuntimeError("axis vector cannot be zero")
         for i in range(3):
             self._axis[i] = axis._v[i] / vmod
 
@@ -216,7 +258,11 @@ cdef class Plane:
         cdef double * pvect2 = <double *> PyMem_Malloc(3 * sizeof(double))
         cdef unsigned int i
         try:
+            if pvect == NULL or pvect2 == NULL:
+                raise MemoryError()
             dmod = AlgVector.module(axis._v)
+            if dmod < presition:
+                raise RuntimeError("axis vector cannot be zero")
             for i in range(3):
                 self._axis[i] = axis._v[i] / dmod
             pvect[0] = 1
@@ -246,8 +292,12 @@ cdef class Plane:
             for i in range(3):
                 self._pos[i] = point._v[i] + offset * self._axis[i]
         finally:
-            PyMem_Free(pvect)
-            PyMem_Free(pvect2)
+            if pvect != NULL:
+                PyMem_Free(pvect)
+                pvect = NULL
+            if pvect2 != NULL:
+                PyMem_Free(pvect2)
+                pvect2 = NULL
 
     def isInside(self, point:Vector):
         return isInside(self, point._v)
@@ -256,6 +306,8 @@ cdef class Plane:
     def system(self):
         cdef Matrix newMat = Matrix()
         newMat._m = <double *> PyMem_Malloc (9 * sizeof(double))
+        if not newMat._m:
+            raise MemoryError()
         newMat._rows = 3
         newMat._cols = 3
         system(newMat._m, self)

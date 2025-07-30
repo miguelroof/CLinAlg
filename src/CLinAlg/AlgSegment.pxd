@@ -12,7 +12,7 @@ cdef bint getIntersectionPointWithSegment(double * toPoint, double * pini1, doub
 cdef class PhantomSegment():
     cdef double * _vini
     cdef double * _vfin
-
+    cdef object _ref_object
 
 cdef class Segment(PhantomSegment):
     pass
